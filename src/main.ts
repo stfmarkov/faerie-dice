@@ -333,11 +333,6 @@ import './style.css'
     aggregationListbox.setValue(resultMode ?? '');
   };
 
-  const padResult = (value: number) => {
-    const width = String(selectedDice.sides).length;
-    return String(value).padStart(width, '0');
-  };
-
   const setResultDisplay = (value: string, metaHtml: string) => {
     resultValueEl.textContent = value;
     resultMetaEl.innerHTML = metaHtml;
@@ -361,7 +356,7 @@ import './style.css'
 
   const formatKeptValue = (kept: number[]) => {
     if (kept.length === 1) {
-      return padResult(kept[0]);
+      return String(kept[0]);
     }
     return String(totalRolls(kept));
   };
@@ -398,7 +393,7 @@ import './style.css'
 
     if (count === 1) {
       return {
-        value: padResult(rolls[0]),
+        value: String(rolls[0]),
         meta: `${formula} <span class="mode">(${pickMode})</span>`,
       };
     }
