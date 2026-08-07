@@ -6,60 +6,86 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Faerie Dice is a tool for rolling dice with weighted probabilities.">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400&family=JetBrains+Mono:wght@500;700&family=Space+Grotesk:wght@600;700&display=swap"
+    rel="stylesheet" />
   <title>Faerie Dice</title>
 </head>
 
 <body>
-  <main>
-    <div id="app">
-      <h1>Faerie Dice</h1>
-      <p class="lede">Not so fair — watch the weights shift after each roll.</p>
+  <header class="topbar">
+    <div class="brand">Faerie Dice</div>
+  </header>
 
-
-      <div class="controls">
-        <button type="button" id="weighted-btn" class="secondary" aria-pressed="true">Weighted: On</button>
-        <button type="button" id="reset-btn" class="secondary">Reset weights</button>
+  <div class="shell">
+    <aside class="dice-tray" aria-label="Dice type">
+      <div class="dice-tray-heading">
+        <span class="dice-tray-title">Dice</span>
+        <span class="dice-tray-sub">Quick tray</span>
       </div>
+      <ul class="die-select" id="die-select"></ul>
+    </aside>
 
-      <div class="controls">
-        <label>
-          Number of rolls
-          <input type="number" id="number-of-rolls" min="1" max="100" value="1" />
-        </label>
-        <div class="die-picker">
-          <span class="die-picker-label">Dice type</span>
-          <details class="die-select-panel" id="die-select-panel">
-            <summary class="die-select-summary" id="die-select-summary">d20</summary>
-            <ul class="die-select" id="die-select"></ul>
-          </details>
+    <main id="app">
+      <section class="stage" aria-live="polite">
+        <div class="result-die" id="result-die" data-die="d20">
+          <div class="result-die-shape" id="result-die-shape" aria-hidden="true"></div>
+          <p class="result-hero" id="result-value">—</p>
         </div>
-      </div>
+        <p class="result-meta" id="result-meta">Roll to begin.</p>
+      </section>
 
-      <div class="controls">
-        <div class="result-modes" role="radiogroup" aria-label="Result mode">
-          <button type="button" class="secondary result-mode-btn" data-result-mode="advantage"
-            aria-pressed="false">Advantage</button>
-          <button type="button" class="secondary result-mode-btn" data-result-mode="disadvantage"
-            aria-pressed="false">Disadvantage</button>
-          <button type="button" class="secondary result-mode-btn" data-result-mode="sum"
-            aria-pressed="false">Sum</button>
+      <section class="tray">
+        <div class="tray-grid">
+          <div class="control-block">
+            <label class="control-label" for="number-of-rolls">Number of rolls</label>
+            <div class="stepper">
+              <button type="button" id="rolls-dec" class="stepper-btn" aria-label="Decrease rolls">−</button>
+              <input type="number" id="number-of-rolls" min="1" max="100" value="1" />
+              <button type="button" id="rolls-inc" class="stepper-btn" aria-label="Increase rolls">+</button>
+            </div>
+          </div>
+
+          <div class="control-block">
+            <span class="control-label" id="weighted-label">Mode</span>
+            <div class="segmented" role="group" aria-labelledby="weighted-label">
+              <button type="button" id="fair-btn" class="segmented-btn" aria-pressed="false">Normal</button>
+              <button type="button" id="weighted-btn" class="segmented-btn" aria-pressed="true">Weighted</button>
+            </div>
+          </div>
+
+          <div class="control-block">
+            <span class="control-label" id="result-mode-label">Aggregation</span>
+            <div class="result-modes" role="radiogroup" aria-labelledby="result-mode-label">
+              <button type="button" class="secondary result-mode-btn" data-result-mode="advantage"
+                aria-pressed="false">Advantage</button>
+              <button type="button" class="secondary result-mode-btn" data-result-mode="disadvantage"
+                aria-pressed="false">Disadvantage</button>
+              <button type="button" class="secondary result-mode-btn" data-result-mode="sum"
+                aria-pressed="false">Sum</button>
+            </div>
+          </div>
         </div>
 
-        <button type="button" id="roll-btn">Roll</button>
+        <div class="tray-actions">
+          <button type="button" id="reset-btn" class="secondary">Reset weights</button>
+          <button type="button" id="roll-btn">Roll</button>
+        </div>
+      </section>
+    </main>
 
+    <aside class="probability" aria-label="Face weights">
+      <div class="probability-header">
+        <h2 class="control-label">Probability engine</h2>
+        <span class="probability-config" id="probability-config">Current config: 1d20</span>
       </div>
+      <ul class="weights" id="weights"></ul>
+    </aside>
+  </div>
 
-      <p class="result" id="result">Roll to begin.</p>
-
-      <details class="weights-panel">
-        <summary class="weights-summary">
-          <span>Weights</span>
-        </summary>
-        <ul class="weights" id="weights"></ul>
-      </details>
-    </div>
-    <script type="module" src="/src/main.ts"></script>
-  </main>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 
 </html>
