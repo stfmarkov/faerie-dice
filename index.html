@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Faerie Dice is a tool for rolling dice with weighted probabilities.">
+  <title>Faerie Dice</title>
+</head>
+
+<body>
+  <main>
+    <div id="app">
+      <h1>Faerie Dice</h1>
+      <p class="lede">Not so fair — watch the weights shift after each roll.</p>
+
+
+      <div class="controls">
+        <button type="button" id="weighted-btn" class="secondary" aria-pressed="true">Weighted: On</button>
+        <button type="button" id="reset-btn" class="secondary">Reset weights</button>
+      </div>
+
+      <div class="controls">
+        <label>
+          Number of rolls
+          <input type="number" id="number-of-rolls" min="1" max="100" value="1" />
+        </label>
+        <div class="die-picker">
+          <span class="die-picker-label">Dice type</span>
+          <details class="die-select-panel" id="die-select-panel">
+            <summary class="die-select-summary" id="die-select-summary">d20</summary>
+            <ul class="die-select" id="die-select"></ul>
+          </details>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="result-modes" role="radiogroup" aria-label="Result mode">
+          <button type="button" class="secondary result-mode-btn" data-result-mode="advantage"
+            aria-pressed="false">Advantage</button>
+          <button type="button" class="secondary result-mode-btn" data-result-mode="disadvantage"
+            aria-pressed="false">Disadvantage</button>
+          <button type="button" class="secondary result-mode-btn" data-result-mode="sum"
+            aria-pressed="false">Sum</button>
+        </div>
+
+        <button type="button" id="roll-btn">Roll</button>
+
+      </div>
+
+      <p class="result" id="result">Roll to begin.</p>
+
+      <details class="weights-panel">
+        <summary class="weights-summary">
+          <span>Weights</span>
+        </summary>
+        <ul class="weights" id="weights"></ul>
+      </details>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </main>
+</body>
+
+</html>

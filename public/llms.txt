@@ -1,0 +1,9 @@
+# Faerie Dice
+
+> Faerie Dice is a browser tool for rolling dice with weighted probabilities that shift after each roll.
+
+Faerie Dice lets you roll common polyhedral dice (d4 through d100). When weighted mode is on, each result slightly reduces that face's chance and redistributes probability across the others — so rolls feel less fair over time. You can also combine multiple dice with advantage, disadvantage, or sum.
+
+## Pages
+
+- [Faerie Dice](/): Interactive weighted dice roller
