@@ -17,6 +17,15 @@
 <body>
   <header class="topbar">
     <div class="brand">Faerie Dice</div>
+    <button
+      type="button"
+      id="probability-toggle"
+      class="probability-toggle"
+      aria-expanded="false"
+      aria-controls="probability-drawer"
+    >
+      Probability
+    </button>
   </header>
 
   <div class="shell">
@@ -49,37 +58,69 @@
           </div>
 
           <div class="control-block">
-            <span class="control-label" id="weighted-label">Mode</span>
-            <div class="segmented" role="group" aria-labelledby="weighted-label">
-              <button type="button" id="fair-btn" class="segmented-btn" aria-pressed="false">Normal</button>
-              <button type="button" id="weighted-btn" class="segmented-btn" aria-pressed="true">Weighted</button>
+            <span class="control-label" id="mode-label">Mode</span>
+            <div class="listbox" id="mode-listbox-root">
+              <button
+                type="button"
+                class="listbox-trigger"
+                id="mode-trigger"
+                aria-haspopup="listbox"
+                aria-expanded="false"
+                aria-controls="mode-listbox"
+                aria-labelledby="mode-label mode-trigger"
+              >Weighted</button>
+              <ul class="listbox-options" id="mode-listbox" role="listbox" aria-labelledby="mode-label" hidden>
+                <li role="option" data-value="fair" aria-selected="false" tabindex="-1">Normal</li>
+                <li role="option" data-value="weighted" aria-selected="true" tabindex="-1">Weighted</li>
+              </ul>
             </div>
           </div>
 
           <div class="control-block">
-            <span class="control-label" id="result-mode-label">Aggregation</span>
-            <div class="result-modes" role="radiogroup" aria-labelledby="result-mode-label">
-              <button type="button" class="secondary result-mode-btn" data-result-mode="advantage"
-                aria-pressed="false">Advantage</button>
-              <button type="button" class="secondary result-mode-btn" data-result-mode="disadvantage"
-                aria-pressed="false">Disadvantage</button>
-              <button type="button" class="secondary result-mode-btn" data-result-mode="sum"
-                aria-pressed="false">Sum</button>
+            <span class="control-label" id="aggregation-label">Aggregation</span>
+            <div class="listbox" id="aggregation-listbox-root">
+              <button
+                type="button"
+                class="listbox-trigger"
+                id="aggregation-trigger"
+                aria-haspopup="listbox"
+                aria-expanded="false"
+                aria-controls="aggregation-listbox"
+                aria-labelledby="aggregation-label aggregation-trigger"
+              >None</button>
+              <ul class="listbox-options" id="aggregation-listbox" role="listbox" aria-labelledby="aggregation-label" hidden>
+                <li role="option" data-value="" aria-selected="true" tabindex="-1">None</li>
+                <li role="option" data-value="advantage" aria-selected="false" tabindex="-1">Advantage</li>
+                <li role="option" data-value="disadvantage" aria-selected="false" tabindex="-1">Disadvantage</li>
+                <li role="option" data-value="sum" aria-selected="false" tabindex="-1">Sum</li>
+              </ul>
             </div>
           </div>
         </div>
 
         <div class="tray-actions">
-          <button type="button" id="reset-btn" class="secondary">Reset weights</button>
           <button type="button" id="roll-btn">Roll</button>
         </div>
       </section>
     </main>
 
-    <aside class="probability" aria-label="Face weights">
+    <aside
+      class="probability"
+      id="probability-drawer"
+      aria-label="Face weights"
+      data-open="false"
+    >
       <div class="probability-header">
-        <h2 class="control-label">Probability engine</h2>
-        <span class="probability-config" id="probability-config">Current config: 1d20</span>
+        <div class="probability-heading">
+          <h2 class="control-label">Probability engine</h2>
+          <span class="probability-config" id="probability-config">Current config: 1d20</span>
+        </div>
+        <div class="probability-header-actions">
+          <button type="button" id="reset-btn" class="secondary">Reset weights</button>
+          <button type="button" id="probability-close" class="probability-close" aria-label="Close probability engine">
+            Close
+          </button>
+        </div>
       </div>
       <ul class="weights" id="weights"></ul>
     </aside>

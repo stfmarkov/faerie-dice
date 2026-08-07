@@ -170,18 +170,128 @@ import './style.css'
   const rollsDecBtn = document.querySelector<HTMLButtonElement>('#rolls-dec')!;
   const rollsIncBtn = document.querySelector<HTMLButtonElement>('#rolls-inc')!;
   const rollBtn = document.querySelector<HTMLButtonElement>('#roll-btn')!;
-  const fairBtn = document.querySelector<HTMLButtonElement>('#fair-btn')!;
-  const weightedBtn = document.querySelector<HTMLButtonElement>('#weighted-btn')!;
   const resetBtn = document.querySelector<HTMLButtonElement>('#reset-btn')!;
   const resultValueEl = document.querySelector<HTMLParagraphElement>('#result-value')!;
   const resultMetaEl = document.querySelector<HTMLParagraphElement>('#result-meta')!;
   const resultDieEl = document.querySelector<HTMLElement>('#result-die')!;
   const resultDieShapeEl = document.querySelector<HTMLElement>('#result-die-shape')!;
   const weightsEl = document.querySelector<HTMLUListElement>('#weights')!;
+  const probabilityEl = document.querySelector<HTMLElement>('#probability-drawer')!;
+  const probabilityToggleBtn = document.querySelector<HTMLButtonElement>('#probability-toggle')!;
+  const probabilityCloseBtn = document.querySelector<HTMLButtonElement>('#probability-close')!;
   const probabilityConfigEl = document.querySelector<HTMLElement>('#probability-config')!;
-  const resultModeButtons = Array.from(
-    document.querySelectorAll<HTMLButtonElement>('.result-mode-btn')
-  );
+
+  type ListboxApi = {
+    getValue: () => string;
+    setValue: (value: string) => void;
+    close: () => void;
+  };
+
+  const createListbox = (
+    root: HTMLElement,
+    onChange: (value: string) => void,
+  ): ListboxApi => {
+    const trigger = root.querySelector<HTMLButtonElement>('.listbox-trigger')!;
+    const list = root.querySelector<HTMLUListElement>('[role="listbox"]')!;
+    const options = Array.from(list.querySelectorAll<HTMLElement>('[role="option"]'));
+
+    const getSelectedOption = () =>
+      options.find(option => option.getAttribute('aria-selected') === 'true') ?? options[0];
+
+    const getValue = () => getSelectedOption()?.dataset.value ?? '';
+
+    const setOpen = (open: boolean) => {
+      trigger.setAttribute('aria-expanded', String(open));
+      list.hidden = !open;
+      if (open) {
+        getSelectedOption()?.focus();
+      }
+    };
+
+    const setValue = (value: string) => {
+      const next = options.find(option => (option.dataset.value ?? '') === value) ?? options[0];
+      for (const option of options) {
+        option.setAttribute('aria-selected', String(option === next));
+      }
+      trigger.textContent = next.textContent?.trim() ?? '';
+    };
+
+    const selectOption = (option: HTMLElement) => {
+      const value = option.dataset.value ?? '';
+      setValue(value);
+      setOpen(false);
+      trigger.focus();
+      onChange(value);
+    };
+
+    const moveSelection = (delta: number) => {
+      const currentIndex = Math.max(0, options.indexOf(document.activeElement as HTMLElement));
+      const nextIndex = (currentIndex + delta + options.length) % options.length;
+      options[nextIndex].focus();
+    };
+
+    trigger.addEventListener('click', () => {
+      setOpen(list.hasAttribute('hidden'));
+    });
+
+    trigger.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        setOpen(true);
+      }
+    });
+
+    list.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        moveSelection(1);
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        moveSelection(-1);
+      } else if (event.key === 'Home') {
+        event.preventDefault();
+        options[0]?.focus();
+      } else if (event.key === 'End') {
+        event.preventDefault();
+        options[options.length - 1]?.focus();
+      } else if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        if (document.activeElement instanceof HTMLElement && options.includes(document.activeElement)) {
+          selectOption(document.activeElement);
+        }
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        setOpen(false);
+        trigger.focus();
+      }
+    });
+
+    for (const option of options) {
+      option.addEventListener('click', () => {
+        selectOption(option);
+      });
+    }
+
+    document.addEventListener('click', (event) => {
+      if (!(event.target instanceof Node) || root.contains(event.target)) {
+        return;
+      }
+      setOpen(false);
+    });
+
+    return {
+      getValue,
+      setValue,
+      close: () => setOpen(false),
+    };
+  };
+
+  const isProbabilityDrawer = () => window.matchMedia('(max-width: 1599px)').matches;
+
+  const setProbabilityOpen = (open: boolean) => {
+    probabilityEl.dataset.open = String(open);
+    probabilityToggleBtn.setAttribute('aria-expanded', String(open));
+  };
 
   const dieIconPaths: Record<string, string> = {
     d4: `<polygon points="12,3 21,20 3,20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter"/>`,
@@ -219,13 +329,8 @@ import './style.css'
     }
   };
 
-  const renderResultModeButtons = () => {
-    for (const button of resultModeButtons) {
-      const mode = button.dataset.resultMode as ResultMode;
-      const pressed = resultMode === mode;
-      button.setAttribute('aria-pressed', String(pressed));
-      button.classList.toggle('active', pressed);
-    }
+  const renderResultModeControls = () => {
+    aggregationListbox.setValue(resultMode ?? '');
   };
 
   const padResult = (value: number) => {
@@ -282,9 +387,8 @@ import './style.css'
     };
   };
 
-  const renderModeButtons = () => {
-    fairBtn.setAttribute('aria-pressed', String(!weightedPicking));
-    weightedBtn.setAttribute('aria-pressed', String(weightedPicking));
+  const renderModeControls = () => {
+    modeListbox.setValue(weightedPicking ? 'weighted' : 'fair');
   };
 
   const renderProbabilityConfig = () => {
@@ -370,7 +474,7 @@ import './style.css'
 
   const setWeightedPicking = (next: boolean) => {
     weightedPicking = next;
-    renderModeButtons();
+    renderModeControls();
     setResultDisplay(
       resultValueEl.textContent || '—',
       weightedPicking
@@ -379,23 +483,22 @@ import './style.css'
     );
   };
 
-  fairBtn.addEventListener('click', () => {
-    setWeightedPicking(false);
-  });
+  const modeListbox = createListbox(
+    document.querySelector<HTMLElement>('#mode-listbox-root')!,
+    (value) => {
+      setWeightedPicking(value === 'weighted');
+    },
+  );
 
-  weightedBtn.addEventListener('click', () => {
-    setWeightedPicking(true);
-  });
-
-  for (const button of resultModeButtons) {
-    button.addEventListener('click', () => {
-      const mode = button.dataset.resultMode as ResultMode;
-      resultMode = resultMode === mode ? null : mode;
+  const aggregationListbox = createListbox(
+    document.querySelector<HTMLElement>('#aggregation-listbox-root')!,
+    (value) => {
+      resultMode = value === '' ? null : value as ResultMode;
       ensureAdvDisadvDiceCount();
-      renderResultModeButtons();
+      renderResultModeControls();
       renderProbabilityConfig();
-    });
-  }
+    },
+  );
 
   rollsDecBtn.addEventListener('click', () => {
     setRollCount(getRollCount() - 1);
@@ -433,6 +536,23 @@ import './style.css'
     renderWeights();
   });
 
+  probabilityToggleBtn.addEventListener('click', () => {
+    if (!isProbabilityDrawer()) {
+      return;
+    }
+    setProbabilityOpen(probabilityEl.dataset.open !== 'true');
+  });
+
+  probabilityCloseBtn.addEventListener('click', () => {
+    setProbabilityOpen(false);
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && probabilityEl.dataset.open === 'true' && isProbabilityDrawer()) {
+      setProbabilityOpen(false);
+    }
+  });
+
   const renderDieSelect = () => {
     dieSelect.innerHTML = diceTypes.map(d => {
       const pressed = d.name === selectedDice.name;
@@ -456,8 +576,8 @@ import './style.css'
   const main = () => {
     renderStageDie();
     renderDieSelect();
-    renderModeButtons();
-    renderResultModeButtons();
+    renderModeControls();
+    renderResultModeControls();
     renderProbabilityConfig();
     renderWeights();
   };
