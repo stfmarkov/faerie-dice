@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "serve": "go run ./cmd/server",
+    "build:serve": "npm run build && go run ./cmd/server"
   },
   "devDependencies": {
     "typescript": "~6.0.2",

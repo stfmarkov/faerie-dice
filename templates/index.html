@@ -1,3 +1,4 @@
+{{/* Production shell rendered by Go. Keep body markup in sync with root index.html (Vite HMR). */}}
 <!doctype html>
 <html lang="en">
 
@@ -12,6 +13,8 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400&family=JetBrains+Mono:wght@500;700&family=Space+Grotesk:wght@600;700&display=swap"
     rel="stylesheet" />
   <title>Faerie Dice</title>
+  {{if .Stylesheet}}<link rel="stylesheet" crossorigin href="{{.Stylesheet}}">{{end}}
+  <script type="module" crossorigin src="{{.Script}}"></script>
 </head>
 
 <body>
@@ -125,8 +128,6 @@
       <ul class="weights" id="weights"></ul>
     </aside>
   </div>
-
-  <script type="module" src="/src/main.ts"></script>
 </body>
 
 </html>
