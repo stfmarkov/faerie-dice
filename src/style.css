@@ -53,6 +53,7 @@ body {
   flex-direction: column;
   background: #0a0a0a;
   color: var(--on-surface);
+  overflow-x: clip;
 }
 
 button,
@@ -84,7 +85,6 @@ button {
 }
 
 .shell {
-  overflow: hidden;
   position: relative;
   flex: 1;
   display: grid;
@@ -408,7 +408,6 @@ input[type="number"]:focus {
   border: 1px solid var(--outline-variant);
   border-radius: var(--radius-lg);
   background: var(--surface-container-high);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 .listbox-options[hidden] {
