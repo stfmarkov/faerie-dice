@@ -344,6 +344,28 @@ import './style.css'
     resultDieEl.dataset.digits = String(Math.max(1, value.replace(/\D/g, '').length || 1));
   };
 
+  const dropLowest = (rolls: number[]) => {
+    const sorted = [...rolls].sort((a, b) => a - b);
+    const [dropped, ...kept] = sorted;
+    return { dropped, kept };
+  };
+
+  const dropHighest = (rolls: number[]) => {
+    const sorted = [...rolls].sort((a, b) => a - b);
+    const dropped = sorted[sorted.length - 1];
+    const kept = sorted.slice(0, -1);
+    return { dropped, kept };
+  };
+
+  const totalRolls = (rolls: number[]) => rolls.reduce((sum, value) => sum + value, 0);
+
+  const formatKeptValue = (kept: number[]) => {
+    if (kept.length === 1) {
+      return padResult(kept[0]);
+    }
+    return String(totalRolls(kept));
+  };
+
   const formatRollResult = (rolls: number[], mode: ResultMode | null, weighted: boolean) => {
     const pickMode = weighted ? 'weighted' : 'fair';
     const rollsText = rolls.join(', ');
@@ -351,23 +373,23 @@ import './style.css'
     const formula = `${count}${selectedDice.name.toUpperCase()}`;
 
     if (mode === 'advantage') {
-      const best = Math.max(...rolls);
+      const { dropped, kept } = dropLowest(rolls);
       return {
-        value: padResult(best),
-        meta: `${formula}: ${rollsText} → Advantage <span class="mode">(${pickMode})</span>`,
+        value: formatKeptValue(kept),
+        meta: `${formula}: ${rollsText} → drop lowest ${dropped} → <span class="mode">Advantage (${pickMode})</span>`,
       };
     }
 
     if (mode === 'disadvantage') {
-      const worst = Math.min(...rolls);
+      const { dropped, kept } = dropHighest(rolls);
       return {
-        value: padResult(worst),
-        meta: `${formula}: ${rollsText} → Disadvantage <span class="mode">(${pickMode})</span>`,
+        value: formatKeptValue(kept),
+        meta: `${formula}: ${rollsText} → drop highest ${dropped} → <span class="mode">Disadvantage (${pickMode})</span>`,
       };
     }
 
     if (mode === 'sum') {
-      const total = rolls.reduce((sum, value) => sum + value, 0);
+      const total = totalRolls(rolls);
       return {
         value: String(total),
         meta: `${formula}: ${rollsText} → Sum <span class="mode">(${pickMode})</span>`,
@@ -382,7 +404,7 @@ import './style.css'
     }
 
     return {
-      value: String(count),
+      value: `${count}×`,
       meta: `${formula}: ${rollsText} <span class="mode">(${pickMode})</span>`,
     };
   };
