@@ -1,0 +1,9 @@
+.git
+.cursor
+node_modules
+dist
+*.md
+design
+docs
+.env*
+*.local
