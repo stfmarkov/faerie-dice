@@ -1,0 +1,27 @@
+{{define "history"}}
+<div class="history-modal" id="history-modal" role="dialog" aria-modal="true" aria-labelledby="history-title">
+  <button type="button" class="history-backdrop" data-history-close aria-label="Close history"></button>
+  <div class="history-panel">
+    <header class="history-header">
+      <h2 class="history-title" id="history-title">Roll history</h2>
+      <button type="button" class="history-close" data-history-close aria-label="Close history">Close</button>
+    </header>
+
+    {{if .Empty}}
+    <p class="history-empty">No rolls yet. Roll some dice first.</p>
+    {{else}}
+    <section class="history-section">
+      <h3 class="history-section-title">All dice</h3>
+      <p class="history-sequence">{{.AllSequence}}</p>
+    </section>
+
+    {{range .ByDie}}
+    <section class="history-section">
+      <h3 class="history-section-title">{{.Name}}</h3>
+      <p class="history-sequence">{{.Sequence}}</p>
+    </section>
+    {{end}}
+    {{end}}
+  </div>
+</div>
+{{end}}

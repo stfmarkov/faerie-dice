@@ -158,12 +158,19 @@ import './style.css'
 
   const formatChance = (chance: number) => `${chance.toFixed(3)}%`;
 
+  type HistoryRoll = {
+    die: string;
+    value: number;
+  };
+
   type ResultMode = 'advantage' | 'disadvantage' | 'sum';
 
   let selectedDice = diceTypes[5]; // d20
   let lastRolls: number[] = [];
   let weightedPicking = true;
   let resultMode: ResultMode | null = null;
+  const rollHistory: HistoryRoll[] = [];
+  (window as Window & { __rollHistory?: HistoryRoll[] }).__rollHistory = rollHistory;
 
   const dieSelect = document.querySelector<HTMLUListElement>('#die-select')!;
   const rollsInput = document.querySelector<HTMLInputElement>('#number-of-rolls')!;
@@ -180,6 +187,17 @@ import './style.css'
   const probabilityToggleBtn = document.querySelector<HTMLButtonElement>('#probability-toggle')!;
   const probabilityCloseBtn = document.querySelector<HTMLButtonElement>('#probability-close')!;
   const probabilityConfigEl = document.querySelector<HTMLElement>('#probability-config')!;
+  const historyRoot = document.querySelector<HTMLElement>('#history-root')!;
+
+  const recordRolls = (die: string, rolls: number[]) => {
+    for (const value of rolls) {
+      rollHistory.push({ die, value });
+    }
+  };
+
+  const closeHistoryModal = () => {
+    historyRoot.innerHTML = '';
+  };
 
   type ListboxApi = {
     getValue: () => string;
@@ -540,6 +558,7 @@ import './style.css'
     setRollCount(count);
 
     lastRolls = Array.from({ length: count }, () => rollDice(selectedDice, weightedPicking));
+    recordRolls(selectedDice.name, lastRolls);
     const { value, meta } = formatRollResult(lastRolls, resultMode, weightedPicking);
     setResultDisplay(value, meta);
     renderProbabilityConfig();
@@ -565,8 +584,24 @@ import './style.css'
   });
 
   window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && probabilityEl.dataset.open === 'true' && isProbabilityDrawer()) {
-      setProbabilityOpen(false);
+    if (event.key === 'Escape') {
+      if (historyRoot.querySelector('#history-modal')) {
+        closeHistoryModal();
+        return;
+      }
+      if (probabilityEl.dataset.open === 'true' && isProbabilityDrawer()) {
+        setProbabilityOpen(false);
+      }
+    }
+  });
+
+  historyRoot.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+    if (target.closest('[data-history-close]')) {
+      closeHistoryModal();
     }
   });
 

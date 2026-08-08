@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -26,6 +27,22 @@ type manifestChunk struct {
 	Src     string   `json:"src"`
 }
 
+type historyRoll struct {
+	Die   string `json:"die"`
+	Value int    `json:"value"`
+}
+
+type dieSequence struct {
+	Name     string
+	Sequence string
+}
+
+type historyViewData struct {
+	Empty       bool
+	AllSequence string
+	ByDie       []dieSequence
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -39,7 +56,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	tmpl, err := template.ParseFiles("templates/index.html")
+	tmpl, err := template.ParseFiles("templates/index.html", "templates/history.html")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to parse templates: %v\n", err)
 		os.Exit(1)
@@ -49,8 +66,22 @@ func main() {
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("dist/assets"))))
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := tmpl.Execute(w, assets); err != nil {
+		if err := tmpl.ExecuteTemplate(w, "index.html", assets); err != nil {
 			log.Printf("template error: %v", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
+	})
+	mux.HandleFunc("POST /history", func(w http.ResponseWriter, r *http.Request) {
+		rolls, err := parseHistoryPayload(r)
+		if err != nil {
+			log.Printf("history parse error: %v", err)
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := tmpl.ExecuteTemplate(w, "history", buildHistoryView(rolls)); err != nil {
+			log.Printf("history template error: %v", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 		}
 	})
@@ -60,6 +91,71 @@ func main() {
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+func parseHistoryPayload(r *http.Request) ([]historyRoll, error) {
+	contentType := r.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "application/json") {
+		defer r.Body.Close()
+		var rolls []historyRoll
+		if err := json.NewDecoder(r.Body).Decode(&rolls); err != nil {
+			return nil, err
+		}
+		return rolls, nil
+	}
+
+	if err := r.ParseForm(); err != nil {
+		return nil, err
+	}
+
+	raw := r.FormValue("history")
+	if raw == "" {
+		return []historyRoll{}, nil
+	}
+
+	var rolls []historyRoll
+	if err := json.Unmarshal([]byte(raw), &rolls); err != nil {
+		return nil, err
+	}
+	return rolls, nil
+}
+
+func buildHistoryView(rolls []historyRoll) historyViewData {
+	if len(rolls) == 0 {
+		return historyViewData{Empty: true}
+	}
+
+	allParts := make([]string, 0, len(rolls))
+	order := make([]string, 0)
+	byDie := make(map[string][]string)
+
+	for _, roll := range rolls {
+		die := strings.TrimSpace(roll.Die)
+		if die == "" {
+			die = "?"
+		}
+		value := strconv.Itoa(roll.Value)
+		allParts = append(allParts, die+":"+value)
+
+		if _, seen := byDie[die]; !seen {
+			order = append(order, die)
+			byDie[die] = nil
+		}
+		byDie[die] = append(byDie[die], value)
+	}
+
+	sequences := make([]dieSequence, 0, len(order))
+	for _, die := range order {
+		sequences = append(sequences, dieSequence{
+			Name:     die,
+			Sequence: strings.Join(byDie[die], ", "),
+		})
+	}
+
+	return historyViewData{
+		AllSequence: strings.Join(allParts, ", "),
+		ByDie:       sequences,
 	}
 }
 

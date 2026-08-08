@@ -14,22 +14,38 @@
     rel="stylesheet" />
   <title>Faerie Dice</title>
   {{if .Stylesheet}}<link rel="stylesheet" crossorigin href="{{.Stylesheet}}">{{end}}
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js" defer></script>
   <script type="module" crossorigin src="{{.Script}}"></script>
 </head>
 
 <body>
   <header class="topbar">
     <div class="brand">Faerie Dice</div>
-    <button
-      type="button"
-      id="probability-toggle"
-      class="probability-toggle"
-      aria-expanded="false"
-      aria-controls="probability-drawer"
-    >
-      Probability
-    </button>
+    <div class="topbar-actions">
+      <button
+        type="button"
+        id="history-btn"
+        class="topbar-btn"
+        hx-post="/history"
+        hx-target="#history-root"
+        hx-swap="innerHTML"
+        hx-vals="js:{history: JSON.stringify(window.__rollHistory ?? [])}"
+      >
+        History
+      </button>
+      <button
+        type="button"
+        id="probability-toggle"
+        class="topbar-btn probability-toggle"
+        aria-expanded="false"
+        aria-controls="probability-drawer"
+      >
+        Probability
+      </button>
+    </div>
   </header>
+
+  <div id="history-root"></div>
 
   <div class="shell">
     <aside class="dice-tray" aria-label="Dice type">
