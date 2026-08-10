@@ -145,8 +145,28 @@ import './style.css'
     return diceType.sides;
   }
 
-  const rollDice = (diceType: DiceType, weighted: boolean) => {
-    return weighted ? rollWeighted(diceType) : rollFair(diceType);
+  // Average of N fair rolls (default 2) → bell curve; middle common, extremes rare.
+  // Future: expose AVERAGE_CURVE_ROLLS as a setting.
+  const AVERAGE_CURVE_ROLLS = 2;
+
+  const rollAverage = (diceType: DiceType, componentRolls = AVERAGE_CURVE_ROLLS) => {
+    let sum = 0;
+    for (let i = 0; i < componentRolls; i++) {
+      sum += rollFair(diceType);
+    }
+    return Math.round(sum / componentRolls);
+  }
+
+  type PickMode = 'fair' | 'weighted' | 'average';
+
+  const rollDice = (diceType: DiceType, mode: PickMode) => {
+    if (mode === 'weighted') {
+      return rollWeighted(diceType);
+    }
+    if (mode === 'average') {
+      return rollAverage(diceType);
+    }
+    return rollFair(diceType);
   }
 
   const getFaceChances = (diceType: DiceType) => {
@@ -154,6 +174,16 @@ import './style.css'
       const value = i + 1;
       return { value, chance: getFaceChance(diceType, value) };
     });
+  }
+
+  const pickModeLabel = (mode: PickMode) => {
+    if (mode === 'weighted') {
+      return 'weighted';
+    }
+    if (mode === 'average') {
+      return 'average';
+    }
+    return 'fair';
   }
 
   const formatChance = (chance: number) => `${chance.toFixed(3)}%`;
@@ -167,7 +197,7 @@ import './style.css'
 
   let selectedDice = diceTypes[5]; // d20
   let lastRolls: number[] = [];
-  let weightedPicking = true;
+  let pickMode: PickMode = 'weighted';
   let resultMode: ResultMode | null = null;
   const rollHistory: HistoryRoll[] = [];
   (window as Window & { __rollHistory?: HistoryRoll[] }).__rollHistory = rollHistory;
@@ -362,8 +392,8 @@ import './style.css'
 
   const totalRolls = (rolls: number[]) => rolls.reduce((sum, value) => sum + value, 0);
 
-  const formatRollResult = (rolls: number[], mode: ResultMode | null, weighted: boolean) => {
-    const pickMode = weighted ? 'weighted' : 'fair';
+  const formatRollResult = (rolls: number[], mode: ResultMode | null, picking: PickMode) => {
+    const modeLabel = pickModeLabel(picking);
     const rollsText = rolls.join(', ');
     const count = rolls.length;
     const formula = `${count}${selectedDice.name.toUpperCase()}`;
@@ -372,7 +402,7 @@ import './style.css'
       const kept = Math.max(...rolls);
       return {
         value: String(kept),
-        meta: `${formula}: ${rollsText} → keep highest ${kept} → <span class="mode">Advantage (${pickMode})</span>`,
+        meta: `${formula}: ${rollsText} → keep highest ${kept} → <span class="mode">Advantage (${modeLabel})</span>`,
       };
     }
 
@@ -380,7 +410,7 @@ import './style.css'
       const kept = Math.min(...rolls);
       return {
         value: String(kept),
-        meta: `${formula}: ${rollsText} → keep lowest ${kept} → <span class="mode">Disadvantage (${pickMode})</span>`,
+        meta: `${formula}: ${rollsText} → keep lowest ${kept} → <span class="mode">Disadvantage (${modeLabel})</span>`,
       };
     }
 
@@ -388,25 +418,25 @@ import './style.css'
       const total = totalRolls(rolls);
       return {
         value: String(total),
-        meta: `${formula}: ${rollsText} → Sum <span class="mode">(${pickMode})</span>`,
+        meta: `${formula}: ${rollsText} → Sum <span class="mode">(${modeLabel})</span>`,
       };
     }
 
     if (count === 1) {
       return {
         value: String(rolls[0]),
-        meta: `${formula} <span class="mode">(${pickMode})</span>`,
+        meta: `${formula} <span class="mode">(${modeLabel})</span>`,
       };
     }
 
     return {
       value: `${count}×`,
-      meta: `${formula}: ${rollsText} <span class="mode">(${pickMode})</span>`,
+      meta: `${formula}: ${rollsText} <span class="mode">(${modeLabel})</span>`,
     };
   };
 
   const renderModeControls = () => {
-    modeListbox.setValue(weightedPicking ? 'weighted' : 'fair');
+    modeListbox.setValue(pickMode);
   };
 
   const renderProbabilityConfig = () => {
@@ -429,7 +459,9 @@ import './style.css'
   };
 
   const renderWeights = () => {
-    const faces = getFaceChances(selectedDice);
+    const faces = pickMode === 'average'
+      ? averageCurveFaceChances(selectedDice.sides)
+      : getFaceChances(selectedDice);
     const baseChance = getChance(selectedDice);
     const maxChance = Math.max(...faces.map(face => face.chance), baseChance);
     const hitFaces = new Set(lastRolls);
@@ -490,7 +522,7 @@ import './style.css'
     const maxValue = distribution[distribution.length - 1].value;
     const middle = Math.round((minValue + maxValue) / 2);
     const hitValue = lastRolls.length > 0
-      ? Number(formatRollResult(lastRolls, resultMode, weightedPicking).value)
+      ? Number(formatRollResult(lastRolls, resultMode, pickMode).value)
       : null;
 
     aggregatedDistributionEl.style.setProperty('--sides', String(distribution.length));
@@ -533,58 +565,106 @@ import './style.css'
     return ways;
   };
 
+  // Chance of each face when the result is round(mean of N fair rolls).
+  const averageCurveFaceChances = (sides: number, componentRolls = AVERAGE_CURVE_ROLLS) => {
+    const ways = sumWaysDistribution(componentRolls, sides);
+    const totalOutcomes = Math.pow(sides, componentRolls);
+    const counts = Array(sides + 1).fill(0);
+    const minSum = componentRolls;
+    const maxSum = componentRolls * sides;
+
+    for (let sum = minSum; sum <= maxSum; sum++) {
+      const face = Math.min(sides, Math.max(1, Math.round(sum / componentRolls)));
+      counts[face] += ways[sum] ?? 0;
+    }
+
+    return Array.from({ length: sides }, (_, i) => {
+      const value = i + 1;
+      return { value, chance: (counts[value] / totalOutcomes) * 100 };
+    });
+  };
+
+  // Face probabilities as fractions (sum to 1) for the active pick mode.
+  // Weighted still uses fair faces here — live weights on aggregated graphs are still open.
+  const getPickFaceProbabilities = () => {
+    const sides = selectedDice.sides;
+    if (pickMode === 'average') {
+      return averageCurveFaceChances(sides).map(face => face.chance / 100);
+    }
+    return Array.from({ length: sides }, () => 1 / sides);
+  };
+
   const sumProbabilityDistribution = () => {
     const numberOfRolls = getRollCount();
     const sides = selectedDice.sides;
-    const ways = sumWaysDistribution(numberOfRolls, sides);
-    const totalOutcomes = Math.pow(sides, numberOfRolls);
+    const faceProb = getPickFaceProbabilities();
+
+    // Convolution of identical independent face distributions
+    let mass = [1]; // 0 dice → sum 0 with probability 1
+    for (let die = 0; die < numberOfRolls; die++) {
+      const next: number[] = Array(mass.length + sides).fill(0);
+      for (let sum = 0; sum < mass.length; sum++) {
+        if (mass[sum] === 0) {
+          continue;
+        }
+        for (let face = 1; face <= sides; face++) {
+          next[sum + face] += mass[sum] * faceProb[face - 1];
+        }
+      }
+      mass = next;
+    }
+
     const minValue = numberOfRolls;
     const maxValue = numberOfRolls * sides;
-
     const distribution: Array<{ value: number, chance: number }> = [];
 
     for (let value = minValue; value <= maxValue; value++) {
       distribution.push({
         value,
-        chance: ((ways[value] ?? 0) / totalOutcomes) * 100,
+        chance: (mass[value] ?? 0) * 100,
       });
     }
 
     return distribution;
   };
 
-  // Keep highest: ways(max = k) = k^n - (k-1)^n
+  // Keep highest: P(max = k) = F(k)^n - F(k-1)^n
   const advantageProbabilityDistribution = () => {
     const numberOfRolls = getRollCount();
     const sides = selectedDice.sides;
-    const totalOutcomes = Math.pow(sides, numberOfRolls);
+    const faceProb = getPickFaceProbabilities();
     const distribution: Array<{ value: number, chance: number }> = [];
+    let cdf = 0;
 
     for (let value = 1; value <= sides; value++) {
-      const ways = Math.pow(value, numberOfRolls) - Math.pow(value - 1, numberOfRolls);
+      const prevCdf = cdf;
+      cdf += faceProb[value - 1];
+      const ways = Math.pow(cdf, numberOfRolls) - Math.pow(prevCdf, numberOfRolls);
       distribution.push({
         value,
-        chance: (ways / totalOutcomes) * 100,
+        chance: ways * 100,
       });
     }
 
     return distribution;
   };
 
-  // Keep lowest: ways(min = k) = (sides-k+1)^n - (sides-k)^n
+  // Keep lowest: P(min = k) = S(k)^n - S(k+1)^n where S(k) = P(X >= k)
   const disadvantageProbabilityDistribution = () => {
     const numberOfRolls = getRollCount();
     const sides = selectedDice.sides;
-    const totalOutcomes = Math.pow(sides, numberOfRolls);
+    const faceProb = getPickFaceProbabilities();
     const distribution: Array<{ value: number, chance: number }> = [];
+    let survival = 1;
 
     for (let value = 1; value <= sides; value++) {
-      const ways =
-        Math.pow(sides - value + 1, numberOfRolls) - Math.pow(sides - value, numberOfRolls);
+      const nextSurvival = survival - faceProb[value - 1];
+      const ways = Math.pow(survival, numberOfRolls) - Math.pow(Math.max(0, nextSurvival), numberOfRolls);
       distribution.push({
         value,
-        chance: (ways / totalOutcomes) * 100,
+        chance: ways * 100,
       });
+      survival = nextSurvival;
     }
 
     return distribution;
@@ -603,6 +683,7 @@ import './style.css'
     renderDieSelect();
     renderProbabilityConfig();
     renderWeights();
+    renderAggregatedDistribution();
   };
 
   dieSelect.addEventListener('click', (event) => {
@@ -624,21 +705,38 @@ import './style.css'
     selectDie(name);
   });
 
-  const setWeightedPicking = (next: boolean) => {
-    weightedPicking = next;
+  const setPickMode = (next: PickMode) => {
+    pickMode = next;
     renderModeControls();
+    renderWeights();
+    renderAggregatedDistribution();
+
+    if (next === 'weighted') {
+      setResultDisplay(
+        resultValueEl.textContent || '—',
+        'Weighted picking on — rolls use and update face chances.',
+      );
+      return;
+    }
+    if (next === 'average') {
+      setResultDisplay(
+        resultValueEl.textContent || '—',
+        'Average curve on — each result is the mean of 2 fair rolls (extremes rare, middle common).',
+      );
+      return;
+    }
     setResultDisplay(
       resultValueEl.textContent || '—',
-      weightedPicking
-        ? 'Weighted picking on — rolls use and update face chances.'
-        : 'Weighted picking off — fair rolls, weights stay frozen.'
+      'Normal picking — fair rolls, weights stay frozen.',
     );
   };
 
   const modeListbox = createListbox(
     document.querySelector<HTMLElement>('#mode-listbox-root')!,
     (value) => {
-      setWeightedPicking(value === 'weighted');
+      if (value === 'weighted' || value === 'average' || value === 'fair') {
+        setPickMode(value);
+      }
     },
   );
 
@@ -649,6 +747,7 @@ import './style.css'
       ensureAdvDisadvDiceCount();
       renderResultModeControls();
       renderProbabilityConfig();
+      renderAggregatedDistribution();
     },
   );
 
@@ -656,17 +755,20 @@ import './style.css'
     setRollCount(getRollCount() - 1);
     ensureAdvDisadvDiceCount();
     renderProbabilityConfig();
+    renderAggregatedDistribution();
   });
 
   rollsIncBtn.addEventListener('click', () => {
     setRollCount(getRollCount() + 1);
     renderProbabilityConfig();
+    renderAggregatedDistribution();
   });
 
   rollsInput.addEventListener('change', () => {
     setRollCount(getRollCount());
     ensureAdvDisadvDiceCount();
     renderProbabilityConfig();
+    renderAggregatedDistribution();
   });
 
   rollBtn.addEventListener('click', () => {
@@ -674,9 +776,9 @@ import './style.css'
     const count = getRollCount();
     setRollCount(count);
 
-    lastRolls = Array.from({ length: count }, () => rollDice(selectedDice, weightedPicking));
+    lastRolls = Array.from({ length: count }, () => rollDice(selectedDice, pickMode));
     recordRolls(selectedDice.name, lastRolls);
-    const { value, meta } = formatRollResult(lastRolls, resultMode, weightedPicking);
+    const { value, meta } = formatRollResult(lastRolls, resultMode, pickMode);
     setResultDisplay(value, meta);
     renderProbabilityConfig();
     renderWeights();
