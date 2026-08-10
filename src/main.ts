@@ -184,12 +184,15 @@ import './style.css'
   type HistoryRoll = {
     die: string;
     value: number;
+    detail?: string;
+    aggregation?: string;
   };
 
   type ResultMode = 'advantage' | 'disadvantage' | 'sum';
 
   let selectedDice = diceTypes[5]; // d20
   let lastRolls: number[] = [];
+  let lastReportedValues: number[] = [];
   let pickMode: PickMode = 'weighted';
   let resultMode: ResultMode | null = null;
   const rollHistory: HistoryRoll[] = [];
@@ -199,6 +202,10 @@ import './style.css'
   const rollsInput = document.querySelector<HTMLInputElement>('#number-of-rolls')!;
   const rollsDecBtn = document.querySelector<HTMLButtonElement>('#rolls-dec')!;
   const rollsIncBtn = document.querySelector<HTMLButtonElement>('#rolls-inc')!;
+  const dicePerRollBlock = document.querySelector<HTMLElement>('#dice-per-roll-block')!;
+  const dicePerRollInput = document.querySelector<HTMLInputElement>('#dice-per-roll')!;
+  const dicePerRollDecBtn = document.querySelector<HTMLButtonElement>('#dice-per-roll-dec')!;
+  const dicePerRollIncBtn = document.querySelector<HTMLButtonElement>('#dice-per-roll-inc')!;
   const rollBtn = document.querySelector<HTMLButtonElement>('#roll-btn')!;
   const resetBtn = document.querySelector<HTMLButtonElement>('#reset-btn')!;
   const resultValueEl = document.querySelector<HTMLParagraphElement>('#result-value')!;
@@ -227,9 +234,9 @@ import './style.css'
   const weightedDropValueEl = document.querySelector<HTMLElement>('#weighted-drop-value')!;
   const historyRoot = document.querySelector<HTMLElement>('#history-root')!;
 
-  const recordRolls = (die: string, rolls: number[]) => {
-    for (const value of rolls) {
-      rollHistory.push({ die, value });
+  const recordHistory = (entries: HistoryRoll[]) => {
+    for (const entry of entries) {
+      rollHistory.push(entry);
     }
   };
 
@@ -425,64 +432,100 @@ import './style.css'
     rollsInput.value = String(Math.min(100, Math.max(1, value)));
   };
 
-  const ensureAdvDisadvDiceCount = () => {
-    if ((resultMode === 'advantage' || resultMode === 'disadvantage') && getRollCount() < 2) {
-      setRollCount(2);
+  const isAdvDisadv = () => resultMode === 'advantage' || resultMode === 'disadvantage';
+
+  const getDicePerRoll = () => {
+    const value = Number.parseInt(dicePerRollInput.value, 10);
+    if (!Number.isFinite(value) || value < 2) {
+      return 2;
+    }
+    return Math.min(value, 100);
+  };
+
+  const setDicePerRoll = (value: number) => {
+    dicePerRollInput.value = String(Math.min(100, Math.max(2, value)));
+  };
+
+  const renderDicePerRollControl = () => {
+    dicePerRollBlock.hidden = !isAdvDisadv();
+    if (isAdvDisadv()) {
+      setDicePerRoll(getDicePerRoll());
     }
   };
 
   const renderResultModeControls = () => {
     aggregationListbox.setValue(resultMode ?? '');
+    renderDicePerRollControl();
   };
 
   const setResultDisplay = (value: string, metaHtml: string) => {
     resultValueEl.textContent = value;
     resultMetaEl.innerHTML = metaHtml;
-    resultDieEl.dataset.digits = String(Math.max(1, value.replace(/\D/g, '').length || 1));
+    const digitChunks = value.match(/\d+/g) ?? [];
+    const digits = digitChunks.length > 0
+      ? Math.max(...digitChunks.map(chunk => chunk.length))
+      : 1;
+    resultDieEl.dataset.digits = String(digits);
   };
 
   const totalRolls = (rolls: number[]) => rolls.reduce((sum, value) => sum + value, 0);
 
-  const formatRollResult = (rolls: number[], mode: ResultMode | null, picking: PickMode) => {
+  type RollGroup = {
+    faces: number[];
+    value: number;
+    detail?: string;
+    aggregation?: string;
+  };
+
+  const formatRollResult = (groups: RollGroup[], mode: ResultMode | null, picking: PickMode) => {
     const modeLabel = pickModeLabel(picking);
-    const rollsText = rolls.join(', ');
-    const count = rolls.length;
-    const formula = `${count}${selectedDice.name.toUpperCase()}`;
+    const dieName = selectedDice.name.toUpperCase();
 
-    if (mode === 'advantage') {
-      const kept = Math.max(...rolls);
+    if (mode === 'advantage' || mode === 'disadvantage') {
+      const dicePerRoll = groups[0]?.faces.length ?? getDicePerRoll();
+      const modeName = mode === 'advantage' ? 'Advantage' : 'Disadvantage';
+      const formula = groups.length === 1
+        ? `${dicePerRoll}${dieName}`
+        : `${groups.length}× ${dicePerRoll}${dieName}`;
+      const keptValues = groups.map(group => group.value);
+      const rollsText = groups.map(group => {
+        const facesText = group.faces.join(', ');
+        return `[${facesText}]→${group.value}`;
+      }).join('; ');
+
       return {
-        value: String(kept),
-        meta: `${formula}: ${rollsText} → keep highest ${kept} → <span class="mode">Advantage (${modeLabel})</span>`,
+        value: groups.length === 1 ? String(groups[0].value) : `${groups.length}×`,
+        meta: `${formula}: ${rollsText} → <span class="mode">${modeName} (${modeLabel})</span>`,
+        reported: keptValues,
       };
     }
 
-    if (mode === 'disadvantage') {
-      const kept = Math.min(...rolls);
-      return {
-        value: String(kept),
-        meta: `${formula}: ${rollsText} → keep lowest ${kept} → <span class="mode">Disadvantage (${modeLabel})</span>`,
-      };
-    }
+    const faces = groups.flatMap(group => group.faces);
+    const rollsText = faces.join(', ');
+    const count = faces.length;
+    const formula = `${count}${dieName}`;
 
     if (mode === 'sum') {
-      const total = totalRolls(rolls);
+      const total = totalRolls(faces);
       return {
         value: String(total),
         meta: `${formula}: ${rollsText} → Sum <span class="mode">(${modeLabel})</span>`,
+        reported: [total],
       };
     }
 
     if (count === 1) {
       return {
-        value: String(rolls[0]),
+        value: String(faces[0]),
         meta: `${formula} <span class="mode">(${modeLabel})</span>`,
+        reported: faces,
       };
     }
 
     return {
       value: `${count}×`,
       meta: `${formula}: ${rollsText} <span class="mode">(${modeLabel})</span>`,
+      reported: faces,
     };
   };
 
@@ -491,8 +534,21 @@ import './style.css'
   };
 
   const renderProbabilityConfig = () => {
-    const count = getRollCount();
-    probabilityConfigEl.textContent = `Current config: ${count}${selectedDice.name}`;
+    const die = selectedDice.name;
+    if (resultMode === 'advantage' || resultMode === 'disadvantage') {
+      const rolls = getRollCount();
+      const dice = getDicePerRoll();
+      const label = resultMode === 'advantage' ? 'advantage' : 'disadvantage';
+      probabilityConfigEl.textContent = rolls === 1
+        ? `Current config: ${dice}${die} ${label}`
+        : `Current config: ${rolls}× ${dice}${die} ${label}`;
+      return;
+    }
+    if (resultMode === 'sum') {
+      probabilityConfigEl.textContent = `Current config: ${getRollCount()}${die} sum`;
+      return;
+    }
+    probabilityConfigEl.textContent = `Current config: ${getRollCount()}${die}`;
   };
 
   const getWeightToneClass = (chance: number, baseChance: number) => {
@@ -579,14 +635,11 @@ import './style.css'
     const minValue = distribution[0].value;
     const maxValue = distribution[distribution.length - 1].value;
     const middle = Math.round((minValue + maxValue) / 2);
-    const hitValue = lastRolls.length > 0
-      ? Number(formatRollResult(lastRolls, resultMode, pickMode).value)
-      : null;
-
+    const hitValues = new Set(lastReportedValues);
     aggregatedDistributionEl.style.setProperty('--sides', String(distribution.length));
     aggregatedDistributionEl.innerHTML = distribution.map(entry => {
       const height = maxChance > 0 ? Math.max(0, (entry.chance / maxChance) * 100) : 0;
-      const hitClass = hitValue === entry.value ? 'hit' : '';
+      const hitClass = hitValues.has(entry.value) ? 'hit' : '';
       const isKeyLabel =
         entry.value === minValue ||
         entry.value === maxValue ||
@@ -666,13 +719,13 @@ import './style.css'
   };
 
   const sumProbabilityDistribution = () => {
-    const numberOfRolls = getRollCount();
+    const numberOfDice = getRollCount();
     const sides = selectedDice.sides;
     const faceProb = getPickFaceProbabilities();
 
     // Convolution of identical independent face distributions
     let mass = [1]; // 0 dice → sum 0 with probability 1
-    for (let die = 0; die < numberOfRolls; die++) {
+    for (let die = 0; die < numberOfDice; die++) {
       const next: number[] = Array(mass.length + sides).fill(0);
       for (let sum = 0; sum < mass.length; sum++) {
         if (mass[sum] === 0) {
@@ -685,8 +738,8 @@ import './style.css'
       mass = next;
     }
 
-    const minValue = numberOfRolls;
-    const maxValue = numberOfRolls * sides;
+    const minValue = numberOfDice;
+    const maxValue = numberOfDice * sides;
     const distribution: Array<{ value: number, chance: number }> = [];
 
     for (let value = minValue; value <= maxValue; value++) {
@@ -701,7 +754,7 @@ import './style.css'
 
   // Keep highest: P(max = k) = F(k)^n - F(k-1)^n
   const advantageProbabilityDistribution = () => {
-    const numberOfRolls = getRollCount();
+    const dicePerRoll = getDicePerRoll();
     const sides = selectedDice.sides;
     const faceProb = getPickFaceProbabilities();
     const distribution: Array<{ value: number, chance: number }> = [];
@@ -710,7 +763,7 @@ import './style.css'
     for (let value = 1; value <= sides; value++) {
       const prevCdf = cdf;
       cdf += faceProb[value - 1];
-      const ways = Math.pow(cdf, numberOfRolls) - Math.pow(prevCdf, numberOfRolls);
+      const ways = Math.pow(cdf, dicePerRoll) - Math.pow(prevCdf, dicePerRoll);
       distribution.push({
         value,
         chance: ways * 100,
@@ -722,7 +775,7 @@ import './style.css'
 
   // Keep lowest: P(min = k) = S(k)^n - S(k+1)^n where S(k) = P(X >= k)
   const disadvantageProbabilityDistribution = () => {
-    const numberOfRolls = getRollCount();
+    const dicePerRoll = getDicePerRoll();
     const sides = selectedDice.sides;
     const faceProb = getPickFaceProbabilities();
     const distribution: Array<{ value: number, chance: number }> = [];
@@ -730,7 +783,7 @@ import './style.css'
 
     for (let value = 1; value <= sides; value++) {
       const nextSurvival = survival - faceProb[value - 1];
-      const ways = Math.pow(survival, numberOfRolls) - Math.pow(Math.max(0, nextSurvival), numberOfRolls);
+      const ways = Math.pow(survival, dicePerRoll) - Math.pow(Math.max(0, nextSurvival), dicePerRoll);
       distribution.push({
         value,
         chance: ways * 100,
@@ -749,6 +802,7 @@ import './style.css'
 
     selectedDice = nextDice;
     lastRolls = [];
+    lastReportedValues = [];
     renderStageDie();
     setResultDisplay('—', `Selected ${selectedDice.name}. Roll to begin.`);
     renderDieSelect();
@@ -816,7 +870,6 @@ import './style.css'
     document.querySelector<HTMLElement>('#aggregation-listbox-root')!,
     (value) => {
       resultMode = value === '' ? null : value as ResultMode;
-      ensureAdvDisadvDiceCount();
       renderResultModeControls();
       renderProbabilityConfig();
       renderAggregatedDistribution();
@@ -825,7 +878,6 @@ import './style.css'
 
   rollsDecBtn.addEventListener('click', () => {
     setRollCount(getRollCount() - 1);
-    ensureAdvDisadvDiceCount();
     renderProbabilityConfig();
     renderAggregatedDistribution();
   });
@@ -838,19 +890,73 @@ import './style.css'
 
   rollsInput.addEventListener('change', () => {
     setRollCount(getRollCount());
-    ensureAdvDisadvDiceCount();
+    renderProbabilityConfig();
+    renderAggregatedDistribution();
+  });
+
+  dicePerRollDecBtn.addEventListener('click', () => {
+    setDicePerRoll(getDicePerRoll() - 1);
+    renderProbabilityConfig();
+    renderAggregatedDistribution();
+  });
+
+  dicePerRollIncBtn.addEventListener('click', () => {
+    setDicePerRoll(getDicePerRoll() + 1);
+    renderProbabilityConfig();
+    renderAggregatedDistribution();
+  });
+
+  dicePerRollInput.addEventListener('change', () => {
+    setDicePerRoll(getDicePerRoll());
     renderProbabilityConfig();
     renderAggregatedDistribution();
   });
 
   rollBtn.addEventListener('click', () => {
-    ensureAdvDisadvDiceCount();
-    const count = getRollCount();
-    setRollCount(count);
+    const rollCount = getRollCount();
+    setRollCount(rollCount);
 
-    lastRolls = Array.from({ length: count }, () => rollDice(selectedDice, pickMode));
-    recordRolls(selectedDice.name, lastRolls);
-    const { value, meta } = formatRollResult(lastRolls, resultMode, pickMode);
+    const groups: RollGroup[] = [];
+
+    if (resultMode === 'advantage' || resultMode === 'disadvantage') {
+      const dicePerRoll = getDicePerRoll();
+      setDicePerRoll(dicePerRoll);
+      const keepHighest = resultMode === 'advantage';
+      for (let rollIndex = 0; rollIndex < rollCount; rollIndex++) {
+        const faces = Array.from({ length: dicePerRoll }, () => rollDice(selectedDice, pickMode));
+        const kept = keepHighest ? Math.max(...faces) : Math.min(...faces);
+        groups.push({
+          faces,
+          value: kept,
+          detail: faces.join(', '),
+          aggregation: resultMode,
+        });
+      }
+    } else if (resultMode === 'sum') {
+      const faces = Array.from({ length: rollCount }, () => rollDice(selectedDice, pickMode));
+      const total = totalRolls(faces);
+      groups.push({
+        faces,
+        value: total,
+        detail: `sum of ${faces.join(', ')}`,
+        aggregation: 'sum',
+      });
+    } else {
+      const faces = Array.from({ length: rollCount }, () => rollDice(selectedDice, pickMode));
+      for (const face of faces) {
+        groups.push({ faces: [face], value: face });
+      }
+    }
+
+    lastRolls = groups.flatMap(group => group.faces);
+    const { value, meta, reported } = formatRollResult(groups, resultMode, pickMode);
+    lastReportedValues = reported;
+    recordHistory(groups.map(group => ({
+      die: selectedDice.name,
+      value: group.value,
+      detail: group.detail,
+      aggregation: group.aggregation,
+    })));
     setResultDisplay(value, meta);
     renderProbabilityConfig();
     renderWeights();
@@ -860,6 +966,7 @@ import './style.css'
   resetBtn.addEventListener('click', () => {
     selectedDice.modifiers = [];
     lastRolls = [];
+    lastReportedValues = [];
     setResultDisplay('—', `${selectedDice.name} reset to fair odds.`);
     renderWeights();
     renderAggregatedDistribution();

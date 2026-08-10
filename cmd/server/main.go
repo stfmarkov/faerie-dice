@@ -28,8 +28,10 @@ type manifestChunk struct {
 }
 
 type historyRoll struct {
-	Die   string `json:"die"`
-	Value int    `json:"value"`
+	Die         string `json:"die"`
+	Value       int    `json:"value"`
+	Detail      string `json:"detail,omitempty"`
+	Aggregation string `json:"aggregation,omitempty"`
 }
 
 type dieSequence struct {
@@ -121,6 +123,15 @@ func parseHistoryPayload(r *http.Request) ([]historyRoll, error) {
 	return rolls, nil
 }
 
+func formatHistoryValue(roll historyRoll) string {
+	value := strconv.Itoa(roll.Value)
+	detail := strings.TrimSpace(roll.Detail)
+	if detail == "" {
+		return value
+	}
+	return value + " (" + detail + ")"
+}
+
 func buildHistoryView(rolls []historyRoll) historyViewData {
 	if len(rolls) == 0 {
 		return historyViewData{Empty: true}
@@ -135,7 +146,7 @@ func buildHistoryView(rolls []historyRoll) historyViewData {
 		if die == "" {
 			die = "?"
 		}
-		value := strconv.Itoa(roll.Value)
+		value := formatHistoryValue(roll)
 		allParts = append(allParts, die+":"+value)
 
 		if _, seen := byDie[die]; !seen {

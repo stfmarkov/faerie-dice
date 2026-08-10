@@ -143,6 +143,15 @@
             </div>
           </div>
 
+          <div class="control-block" id="dice-per-roll-block" hidden>
+            <label class="control-label" for="dice-per-roll">Dice per roll</label>
+            <div class="stepper">
+              <button type="button" id="dice-per-roll-dec" class="stepper-btn" aria-label="Decrease dice per roll">−</button>
+              <input type="number" id="dice-per-roll" min="2" max="100" value="2" />
+              <button type="button" id="dice-per-roll-inc" class="stepper-btn" aria-label="Increase dice per roll">+</button>
+            </div>
+          </div>
+
           <div class="control-block">
             <span class="control-label" id="mode-label">Mode</span>
             <div class="listbox" id="mode-listbox-root">

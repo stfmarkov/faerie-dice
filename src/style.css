@@ -296,6 +296,10 @@ button {
   gap: var(--space-sm);
 }
 
+.control-block[hidden] {
+  display: none;
+}
+
 .control-label {
   margin: 0;
   font-family: var(--font-mono);
@@ -865,7 +869,7 @@ input[type="range"]::-moz-range-thumb {
   }
 
   .tray-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
     align-items: start;
   }
 
