@@ -185,7 +185,6 @@ import './style.css'
     die: string;
     value: number;
     detail?: string;
-    aggregation?: string;
   };
 
   type ResultMode = 'advantage' | 'disadvantage' | 'sum';
@@ -461,11 +460,7 @@ import './style.css'
   const setResultDisplay = (value: string, metaHtml: string) => {
     resultValueEl.textContent = value;
     resultMetaEl.innerHTML = metaHtml;
-    const digitChunks = value.match(/\d+/g) ?? [];
-    const digits = digitChunks.length > 0
-      ? Math.max(...digitChunks.map(chunk => chunk.length))
-      : 1;
-    resultDieEl.dataset.digits = String(digits);
+    resultDieEl.dataset.digits = String(Math.max(1, value.replace(/\D/g, '').length || 1));
   };
 
   const totalRolls = (rolls: number[]) => rolls.reduce((sum, value) => sum + value, 0);
@@ -473,8 +468,16 @@ import './style.css'
   type RollGroup = {
     faces: number[];
     value: number;
-    detail?: string;
-    aggregation?: string;
+  };
+
+  const historyDetailFor = (group: RollGroup, mode: ResultMode | null) => {
+    if (mode === 'advantage' || mode === 'disadvantage') {
+      return group.faces.join(', ');
+    }
+    if (mode === 'sum') {
+      return `sum of ${group.faces.join(', ')}`;
+    }
+    return undefined;
   };
 
   const formatRollResult = (groups: RollGroup[], mode: ResultMode | null, picking: PickMode) => {
@@ -925,22 +928,11 @@ import './style.css'
       for (let rollIndex = 0; rollIndex < rollCount; rollIndex++) {
         const faces = Array.from({ length: dicePerRoll }, () => rollDice(selectedDice, pickMode));
         const kept = keepHighest ? Math.max(...faces) : Math.min(...faces);
-        groups.push({
-          faces,
-          value: kept,
-          detail: faces.join(', '),
-          aggregation: resultMode,
-        });
+        groups.push({ faces, value: kept });
       }
     } else if (resultMode === 'sum') {
       const faces = Array.from({ length: rollCount }, () => rollDice(selectedDice, pickMode));
-      const total = totalRolls(faces);
-      groups.push({
-        faces,
-        value: total,
-        detail: `sum of ${faces.join(', ')}`,
-        aggregation: 'sum',
-      });
+      groups.push({ faces, value: totalRolls(faces) });
     } else {
       const faces = Array.from({ length: rollCount }, () => rollDice(selectedDice, pickMode));
       for (const face of faces) {
@@ -954,8 +946,7 @@ import './style.css'
     recordHistory(groups.map(group => ({
       die: selectedDice.name,
       value: group.value,
-      detail: group.detail,
-      aggregation: group.aggregation,
+      detail: historyDetailFor(group, resultMode),
     })));
     setResultDisplay(value, meta);
     renderProbabilityConfig();

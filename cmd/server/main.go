@@ -28,10 +28,9 @@ type manifestChunk struct {
 }
 
 type historyRoll struct {
-	Die         string `json:"die"`
-	Value       int    `json:"value"`
-	Detail      string `json:"detail,omitempty"`
-	Aggregation string `json:"aggregation,omitempty"`
+	Die    string `json:"die"`
+	Value  int    `json:"value"`
+	Detail string `json:"detail,omitempty"`
 }
 
 type dieSequence struct {
