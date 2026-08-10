@@ -99,7 +99,17 @@
         </div>
       </div>
       <div class="settings-panel" id="settings-average" hidden>
-        <p class="settings-empty">Average settings coming soon.</p>
+        <div class="control-block">
+          <label class="control-label" for="average-curve-rolls">Curve rolls</label>
+          <div class="stepper">
+            <button type="button" id="average-curve-rolls-dec" class="stepper-btn" aria-label="Decrease curve rolls">−</button>
+            <input type="number" id="average-curve-rolls" min="2" max="20" value="2" />
+            <button type="button" id="average-curve-rolls-inc" class="stepper-btn" aria-label="Increase curve rolls">+</button>
+          </div>
+          <p class="settings-hint">
+            Each result is the mean of this many fair rolls. Higher values tighten the bell toward the middle.
+          </p>
+        </div>
       </div>
     </div>
   </aside>

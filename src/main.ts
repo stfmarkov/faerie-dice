@@ -140,10 +140,9 @@ import './style.css'
   }
 
   // Average of N fair rolls (default 2) → bell curve; middle common, extremes rare.
-  // Future: expose AVERAGE_CURVE_ROLLS as a setting.
-  const AVERAGE_CURVE_ROLLS = 2;
+  let averageCurveRolls = 2;
 
-  const rollAverage = (diceType: DiceType, componentRolls = AVERAGE_CURVE_ROLLS) => {
+  const rollAverage = (diceType: DiceType, componentRolls = averageCurveRolls) => {
     let sum = 0;
     for (let i = 0; i < componentRolls; i++) {
       sum += rollFair(diceType);
@@ -221,6 +220,9 @@ import './style.css'
   const settingsFairEl = document.querySelector<HTMLElement>('#settings-fair')!;
   const settingsWeightedEl = document.querySelector<HTMLElement>('#settings-weighted')!;
   const settingsAverageEl = document.querySelector<HTMLElement>('#settings-average')!;
+  const averageCurveRollsInput = document.querySelector<HTMLInputElement>('#average-curve-rolls')!;
+  const averageCurveRollsDecBtn = document.querySelector<HTMLButtonElement>('#average-curve-rolls-dec')!;
+  const averageCurveRollsIncBtn = document.querySelector<HTMLButtonElement>('#average-curve-rolls-inc')!;
   const weightedDropSlider = document.querySelector<HTMLInputElement>('#weighted-drop-slider')!;
   const weightedDropValueEl = document.querySelector<HTMLElement>('#weighted-drop-value')!;
   const historyRoot = document.querySelector<HTMLElement>('#history-root')!;
@@ -370,6 +372,27 @@ import './style.css'
     weightedDropSlider.setAttribute('aria-valuenow', String(weightedDropPercent));
     weightedDropSlider.setAttribute('aria-valuetext', `${weightedDropPercent} percent`);
     weightedDropValueEl.textContent = `${weightedDropPercent}%`;
+  };
+
+  const getAverageCurveRolls = () => {
+    const value = Number.parseInt(averageCurveRollsInput.value, 10);
+    if (!Number.isFinite(value) || value < 2) {
+      return 2;
+    }
+    return Math.min(value, 20);
+  };
+
+  const setAverageCurveRolls = (value: number) => {
+    averageCurveRolls = Math.min(20, Math.max(2, value));
+    averageCurveRollsInput.value = String(averageCurveRolls);
+  };
+
+  const applyAverageCurveRolls = (value: number) => {
+    setAverageCurveRolls(value);
+    if (pickMode === 'average') {
+      renderWeights();
+      renderAggregatedDistribution();
+    }
   };
 
   const dieIconPaths: Record<string, string> = {
@@ -594,7 +617,7 @@ import './style.css'
   };
 
   // Chance of each face when the result is round(mean of N fair rolls).
-  const averageCurveFaceChances = (sides: number, componentRolls = AVERAGE_CURVE_ROLLS) => {
+  const averageCurveFaceChances = (sides: number, componentRolls = averageCurveRolls) => {
     const ways = sumWaysDistribution(componentRolls, sides);
     const totalOutcomes = Math.pow(sides, componentRolls);
     const counts = Array(sides + 1).fill(0);
@@ -750,7 +773,7 @@ import './style.css'
     if (next === 'average') {
       setResultDisplay(
         resultValueEl.textContent || '—',
-        'Average curve on — each result is the mean of 2 fair rolls (extremes rare, middle common).',
+        `Average curve on — each result is the mean of ${averageCurveRolls} fair rolls (extremes rare, middle common).`,
       );
       return;
     }
@@ -848,6 +871,18 @@ import './style.css'
     renderWeightedDropControl();
   });
 
+  averageCurveRollsDecBtn.addEventListener('click', () => {
+    applyAverageCurveRolls(getAverageCurveRolls() - 1);
+  });
+
+  averageCurveRollsIncBtn.addEventListener('click', () => {
+    applyAverageCurveRolls(getAverageCurveRolls() + 1);
+  });
+
+  averageCurveRollsInput.addEventListener('change', () => {
+    applyAverageCurveRolls(getAverageCurveRolls());
+  });
+
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       if (historyRoot.querySelector('#history-modal')) {
@@ -901,6 +936,7 @@ import './style.css'
     renderResultModeControls();
     renderSettingsPanels();
     renderWeightedDropControl();
+    setAverageCurveRolls(averageCurveRolls);
     renderProbabilityConfig();
     renderWeights();
   };
