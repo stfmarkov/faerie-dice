@@ -183,7 +183,9 @@ import './style.css'
   const resultDieEl = document.querySelector<HTMLElement>('#result-die')!;
   const resultDieShapeEl = document.querySelector<HTMLElement>('#result-die-shape')!;
   const weightsEl = document.querySelector<HTMLUListElement>('#weights')!;
-  const sumDistributionEl = document.querySelector<HTMLUListElement>('#sum-distribution')!;
+  const aggregatedGraphEl = document.querySelector<HTMLElement>('#aggregated-graph')!;
+  const aggregatedDistributionEl = document.querySelector<HTMLUListElement>('#aggregated-distribution')!;
+  const aggregatedDistributionLabelEl = document.querySelector<HTMLElement>('#aggregated-distribution-label')!;
   const probabilityEl = document.querySelector<HTMLElement>('#probability-drawer')!;
   const probabilityToggleBtn = document.querySelector<HTMLButtonElement>('#probability-toggle')!;
   const probabilityCloseBtn = document.querySelector<HTMLButtonElement>('#probability-close')!;
@@ -358,27 +360,7 @@ import './style.css'
     resultDieEl.dataset.digits = String(Math.max(1, value.replace(/\D/g, '').length || 1));
   };
 
-  const dropLowest = (rolls: number[]) => {
-    const sorted = [...rolls].sort((a, b) => a - b);
-    const [dropped, ...kept] = sorted;
-    return { dropped, kept };
-  };
-
-  const dropHighest = (rolls: number[]) => {
-    const sorted = [...rolls].sort((a, b) => a - b);
-    const dropped = sorted[sorted.length - 1];
-    const kept = sorted.slice(0, -1);
-    return { dropped, kept };
-  };
-
   const totalRolls = (rolls: number[]) => rolls.reduce((sum, value) => sum + value, 0);
-
-  const formatKeptValue = (kept: number[]) => {
-    if (kept.length === 1) {
-      return String(kept[0]);
-    }
-    return String(totalRolls(kept));
-  };
 
   const formatRollResult = (rolls: number[], mode: ResultMode | null, weighted: boolean) => {
     const pickMode = weighted ? 'weighted' : 'fair';
@@ -387,18 +369,18 @@ import './style.css'
     const formula = `${count}${selectedDice.name.toUpperCase()}`;
 
     if (mode === 'advantage') {
-      const { dropped, kept } = dropLowest(rolls);
+      const kept = Math.max(...rolls);
       return {
-        value: formatKeptValue(kept),
-        meta: `${formula}: ${rollsText} → drop lowest ${dropped} → <span class="mode">Advantage (${pickMode})</span>`,
+        value: String(kept),
+        meta: `${formula}: ${rollsText} → keep highest ${kept} → <span class="mode">Advantage (${pickMode})</span>`,
       };
     }
 
     if (mode === 'disadvantage') {
-      const { dropped, kept } = dropHighest(rolls);
+      const kept = Math.min(...rolls);
       return {
-        value: formatKeptValue(kept),
-        meta: `${formula}: ${rollsText} → drop highest ${dropped} → <span class="mode">Disadvantage (${pickMode})</span>`,
+        value: String(kept),
+        meta: `${formula}: ${rollsText} → keep lowest ${kept} → <span class="mode">Disadvantage (${pickMode})</span>`,
       };
     }
 
@@ -474,10 +456,32 @@ import './style.css'
     }).join('');
   };
 
-  const renderSumDistribution = () => {
-    const distribution = sumProbabilityDistribution();
+  const renderAggregatedDistribution = () => {
+    if (!resultMode) {
+      aggregatedGraphEl.hidden = true;
+      aggregatedDistributionEl.innerHTML = '';
+      return;
+    }
+
+    const distribution =
+      resultMode === 'sum'
+        ? sumProbabilityDistribution()
+        : resultMode === 'advantage'
+          ? advantageProbabilityDistribution()
+          : disadvantageProbabilityDistribution();
+
+    const labels: Record<ResultMode, string> = {
+      sum: 'Sum distribution',
+      advantage: 'Advantage distribution',
+      disadvantage: 'Disadvantage distribution',
+    };
+
+    aggregatedGraphEl.hidden = false;
+    aggregatedDistributionLabelEl.textContent = labels[resultMode];
+    aggregatedGraphEl.setAttribute('aria-label', labels[resultMode]);
+
     if (distribution.length === 0) {
-      sumDistributionEl.innerHTML = '';
+      aggregatedDistributionEl.innerHTML = '';
       return;
     }
 
@@ -485,14 +489,14 @@ import './style.css'
     const minValue = distribution[0].value;
     const maxValue = distribution[distribution.length - 1].value;
     const middle = Math.round((minValue + maxValue) / 2);
-    const hitSum = lastRolls.length > 0
-      ? lastRolls.reduce((acc, roll) => acc + roll, 0)
+    const hitValue = lastRolls.length > 0
+      ? Number(formatRollResult(lastRolls, resultMode, weightedPicking).value)
       : null;
 
-    sumDistributionEl.style.setProperty('--sides', String(distribution.length));
-    sumDistributionEl.innerHTML = distribution.map(entry => {
+    aggregatedDistributionEl.style.setProperty('--sides', String(distribution.length));
+    aggregatedDistributionEl.innerHTML = distribution.map(entry => {
       const height = maxChance > 0 ? Math.max(0, (entry.chance / maxChance) * 100) : 0;
-      const hitClass = hitSum === entry.value ? 'hit' : '';
+      const hitClass = hitValue === entry.value ? 'hit' : '';
       const isKeyLabel =
         entry.value === minValue ||
         entry.value === maxValue ||
@@ -543,6 +547,43 @@ import './style.css'
       distribution.push({
         value,
         chance: ((ways[value] ?? 0) / totalOutcomes) * 100,
+      });
+    }
+
+    return distribution;
+  };
+
+  // Keep highest: ways(max = k) = k^n - (k-1)^n
+  const advantageProbabilityDistribution = () => {
+    const numberOfRolls = getRollCount();
+    const sides = selectedDice.sides;
+    const totalOutcomes = Math.pow(sides, numberOfRolls);
+    const distribution: Array<{ value: number, chance: number }> = [];
+
+    for (let value = 1; value <= sides; value++) {
+      const ways = Math.pow(value, numberOfRolls) - Math.pow(value - 1, numberOfRolls);
+      distribution.push({
+        value,
+        chance: (ways / totalOutcomes) * 100,
+      });
+    }
+
+    return distribution;
+  };
+
+  // Keep lowest: ways(min = k) = (sides-k+1)^n - (sides-k)^n
+  const disadvantageProbabilityDistribution = () => {
+    const numberOfRolls = getRollCount();
+    const sides = selectedDice.sides;
+    const totalOutcomes = Math.pow(sides, numberOfRolls);
+    const distribution: Array<{ value: number, chance: number }> = [];
+
+    for (let value = 1; value <= sides; value++) {
+      const ways =
+        Math.pow(sides - value + 1, numberOfRolls) - Math.pow(sides - value, numberOfRolls);
+      distribution.push({
+        value,
+        chance: (ways / totalOutcomes) * 100,
       });
     }
 
@@ -639,7 +680,7 @@ import './style.css'
     setResultDisplay(value, meta);
     renderProbabilityConfig();
     renderWeights();
-    renderSumDistribution();
+    renderAggregatedDistribution();
   });
 
   resetBtn.addEventListener('click', () => {
