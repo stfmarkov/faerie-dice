@@ -12,9 +12,11 @@ import './style.css'
     modifiers: Modifier[];
   }
 
+  // Share of a face's base chance removed when that face is rolled (weighted mode).
+  let weightedDropPercent = 20;
+
   const getBaseModifier = (diceType: DiceType) => {
-    // 20% of the chance to roll a value for the current dice type
-    return getChance(diceType) * 0.2;
+    return getChance(diceType) * (weightedDropPercent / 100);
   }
 
   const diceTypes: DiceType[] = [
@@ -60,68 +62,60 @@ import './style.css'
   }
 
   const getFaceChance = (diceType: DiceType, value: number) => {
-    return diceType.modifiers.find(m => m.value === value)?.modifierValue ?? getChance(diceType);
+    const chance = diceType.modifiers.find(m => m.value === value)?.modifierValue ?? getChance(diceType);
+    return Math.max(0, chance);
   }
 
+  const ensureFaceModifier = (diceTypeIndex: number, diceType: DiceType, value: number) => {
+    const existing = diceTypes[diceTypeIndex].modifiers.find(m => m.value === value);
+    if (existing) {
+      return existing;
+    }
+    const created = { value, modifierValue: getChance(diceType) };
+    diceTypes[diceTypeIndex].modifiers.push(created);
+    return created;
+  };
+
   const modifyValues = (diceType: DiceType, rolledValue: number) => {
-
-    // To modify by value, we need to:
-    // When a value is rolled, the chance to roll that value is reduced by a modifier
-    // The same number is spread over the other values
-
-
-    // To modify by group, we need to:
-    // Check if the rolled value is above or below the group threshold
-    // We decrese the chance to roll all values from the same group
-    // We increase the chance to roll all values from the other group
-
-    const baseModifier = getBaseModifier(diceType);
-    // const restValuesModifier = (baseModifier / (diceType.sides - 1)) / 2;
-    const restValuesModifier = baseModifier / diceType.sides; // d20 → 0.05%
-
+    // Value memory: reduce the rolled face (never below 0) and move that mass
+    // to the opposite high/low group. Same-group faces are left unchanged.
     const diceTypeIndex = diceTypes.findIndex(d => d.name === diceType.name);
-    const groupThreshold = diceType.sides / 2
+    const sides = diceType.sides;
+    const groupThreshold = sides / 2;
+    const isHigh = (value: number) => value > groupThreshold;
 
-    for (let i = 1; i <= diceType.sides; i++) {
-      // Modify by value
-      const hasModifierForCurrentValue = Boolean(diceTypes[diceTypeIndex].modifiers.find(m => m.value === i));
-      const isTheRolledValue = i === rolledValue;
-      if (hasModifierForCurrentValue && isTheRolledValue) {
-        diceTypes[diceTypeIndex].modifiers.find(m => m.value === i)!.modifierValue -= baseModifier;
-      }
-      if (!hasModifierForCurrentValue && isTheRolledValue) {
-        diceTypes[diceTypeIndex].modifiers.push({
-          value: i,
-          modifierValue: getChance(diceType) - baseModifier,
-        });
-      }
-      if (hasModifierForCurrentValue && !isTheRolledValue) {
-        diceTypes[diceTypeIndex].modifiers.find(m => m.value === i)!.modifierValue += restValuesModifier;
-      }
-      if (!hasModifierForCurrentValue && !isTheRolledValue) {
-        diceTypes[diceTypeIndex].modifiers.push({
-          value: i,
-          modifierValue: getChance(diceType) + restValuesModifier,
-        });
-      }
-
-      // Modify by group (skip the rolled value — value memory already handled it)
-      const isHigh = (value: number) => value > groupThreshold;
-      const isFromTheSameGroup = isHigh(i) === isHigh(rolledValue);
-
-      if (isTheRolledValue) {
-        continue;
-      }
-
-      if (isFromTheSameGroup) {
-        diceTypes[diceTypeIndex].modifiers.find(m => m.value === i)!.modifierValue -= restValuesModifier;
-      }
-      if (!isFromTheSameGroup) {
-        diceTypes[diceTypeIndex].modifiers.find(m => m.value === i)!.modifierValue += restValuesModifier;
-      }
+    for (let value = 1; value <= sides; value++) {
+      ensureFaceModifier(diceTypeIndex, diceType, value);
     }
 
+    const rolledMod = diceTypes[diceTypeIndex].modifiers.find(m => m.value === rolledValue)!;
+    const available = Math.max(0, rolledMod.modifierValue);
+    rolledMod.modifierValue = available;
 
+    const desiredDrop = getBaseModifier(diceType);
+    const actualDrop = Math.min(desiredDrop, available);
+
+    if (actualDrop <= 0) {
+      return;
+    }
+
+    rolledMod.modifierValue -= actualDrop;
+
+    // Existing split: each face is notionally owed actualDrop/sides from value
+    // memory; same-group cancels that, opposite-group receives it twice → all of
+    // actualDrop lands on the opposite high/low group.
+    const restShare = actualDrop / sides;
+
+    for (let value = 1; value <= sides; value++) {
+      if (value === rolledValue) {
+        continue;
+      }
+      const sameGroup = isHigh(value) === isHigh(rolledValue);
+      if (sameGroup) {
+        continue;
+      }
+      diceTypes[diceTypeIndex].modifiers.find(m => m.value === value)!.modifierValue += 2 * restShare;
+    }
   }
 
   const rollFair = (diceType: DiceType) => {
@@ -220,6 +214,15 @@ import './style.css'
   const probabilityToggleBtn = document.querySelector<HTMLButtonElement>('#probability-toggle')!;
   const probabilityCloseBtn = document.querySelector<HTMLButtonElement>('#probability-close')!;
   const probabilityConfigEl = document.querySelector<HTMLElement>('#probability-config')!;
+  const settingsEl = document.querySelector<HTMLElement>('#settings-drawer')!;
+  const settingsToggleBtn = document.querySelector<HTMLButtonElement>('#settings-toggle')!;
+  const settingsCloseBtn = document.querySelector<HTMLButtonElement>('#settings-close')!;
+  const settingsModeLabelEl = document.querySelector<HTMLElement>('#settings-mode-label')!;
+  const settingsFairEl = document.querySelector<HTMLElement>('#settings-fair')!;
+  const settingsWeightedEl = document.querySelector<HTMLElement>('#settings-weighted')!;
+  const settingsAverageEl = document.querySelector<HTMLElement>('#settings-average')!;
+  const weightedDropSlider = document.querySelector<HTMLInputElement>('#weighted-drop-slider')!;
+  const weightedDropValueEl = document.querySelector<HTMLElement>('#weighted-drop-value')!;
   const historyRoot = document.querySelector<HTMLElement>('#history-root')!;
 
   const recordRolls = (die: string, rolls: number[]) => {
@@ -342,6 +345,31 @@ import './style.css'
   const setProbabilityOpen = (open: boolean) => {
     probabilityEl.dataset.open = String(open);
     probabilityToggleBtn.setAttribute('aria-expanded', String(open));
+  };
+
+  const setSettingsOpen = (open: boolean) => {
+    settingsEl.dataset.open = String(open);
+    settingsToggleBtn.setAttribute('aria-expanded', String(open));
+  };
+
+  const pickModeTitle: Record<PickMode, string> = {
+    fair: 'Normal',
+    weighted: 'Weighted',
+    average: 'Average',
+  };
+
+  const renderSettingsPanels = () => {
+    settingsModeLabelEl.textContent = pickModeTitle[pickMode];
+    settingsFairEl.hidden = pickMode !== 'fair';
+    settingsWeightedEl.hidden = pickMode !== 'weighted';
+    settingsAverageEl.hidden = pickMode !== 'average';
+  };
+
+  const renderWeightedDropControl = () => {
+    weightedDropSlider.value = String(weightedDropPercent);
+    weightedDropSlider.setAttribute('aria-valuenow', String(weightedDropPercent));
+    weightedDropSlider.setAttribute('aria-valuetext', `${weightedDropPercent} percent`);
+    weightedDropValueEl.textContent = `${weightedDropPercent}%`;
   };
 
   const dieIconPaths: Record<string, string> = {
@@ -708,6 +736,7 @@ import './style.css'
   const setPickMode = (next: PickMode) => {
     pickMode = next;
     renderModeControls();
+    renderSettingsPanels();
     renderWeights();
     renderAggregatedDistribution();
 
@@ -803,10 +832,30 @@ import './style.css'
     setProbabilityOpen(false);
   });
 
+  settingsToggleBtn.addEventListener('click', () => {
+    setSettingsOpen(settingsEl.dataset.open !== 'true');
+  });
+
+  settingsCloseBtn.addEventListener('click', () => {
+    setSettingsOpen(false);
+  });
+
+  weightedDropSlider.addEventListener('input', () => {
+    const next = Number.parseInt(weightedDropSlider.value, 10);
+    weightedDropPercent = Number.isFinite(next)
+      ? Math.min(100, Math.max(0, next))
+      : 20;
+    renderWeightedDropControl();
+  });
+
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       if (historyRoot.querySelector('#history-modal')) {
         closeHistoryModal();
+        return;
+      }
+      if (settingsEl.dataset.open === 'true') {
+        setSettingsOpen(false);
         return;
       }
       if (probabilityEl.dataset.open === 'true' && isProbabilityDrawer()) {
@@ -850,6 +899,8 @@ import './style.css'
     renderDieSelect();
     renderModeControls();
     renderResultModeControls();
+    renderSettingsPanels();
+    renderWeightedDropControl();
     renderProbabilityConfig();
     renderWeights();
   };

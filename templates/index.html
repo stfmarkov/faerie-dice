@@ -35,6 +35,15 @@
       </button>
       <button
         type="button"
+        id="settings-toggle"
+        class="topbar-btn"
+        aria-expanded="false"
+        aria-controls="settings-drawer"
+      >
+        Settings
+      </button>
+      <button
+        type="button"
         id="probability-toggle"
         class="topbar-btn probability-toggle"
         aria-expanded="false"
@@ -46,6 +55,54 @@
   </header>
 
   <div id="history-root"></div>
+
+  <aside
+    class="settings"
+    id="settings-drawer"
+    aria-label="Mode settings"
+    data-open="false"
+  >
+    <div class="settings-header">
+      <div class="settings-heading">
+        <h2 class="control-label">Settings</h2>
+        <span class="settings-mode" id="settings-mode-label">Weighted</span>
+      </div>
+      <button type="button" id="settings-close" class="settings-close" aria-label="Close settings">
+        Close
+      </button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-panel" id="settings-fair" hidden>
+        <p class="settings-empty">Normal mode has no settings.</p>
+      </div>
+      <div class="settings-panel" id="settings-weighted">
+        <div class="control-block">
+          <div class="settings-slider-head">
+            <label class="control-label" for="weighted-drop-slider">Drop strength</label>
+            <span class="settings-slider-value" id="weighted-drop-value">20%</span>
+          </div>
+          <input
+            type="range"
+            id="weighted-drop-slider"
+            min="0"
+            max="100"
+            step="1"
+            value="20"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="20"
+            aria-valuetext="20 percent"
+          />
+          <p class="settings-hint">
+            How much the rolled face's chance drops after each roll (share of that face's base chance).
+          </p>
+        </div>
+      </div>
+      <div class="settings-panel" id="settings-average" hidden>
+        <p class="settings-empty">Average settings coming soon.</p>
+      </div>
+    </div>
+  </aside>
 
   <div class="shell">
     <aside class="dice-tray" aria-label="Dice type">
