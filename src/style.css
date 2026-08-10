@@ -575,15 +575,35 @@ input[type="number"]:focus {
   color: var(--on-surface-variant);
 }
 
+.probability-graphs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md) 0 var(--space-lg);
+  overflow-y: auto;
+  max-height: calc(100% - 5.5rem);
+}
+
+.probability-graph-label {
+  margin: 0;
+  padding: 0 var(--space-lg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+}
+
 .weights {
   --sides: 20;
   list-style: none;
   margin: 0;
-  padding: var(--space-md) var(--space-lg) var(--space-lg);
+  padding: var(--space-sm) var(--space-lg) 0;
   display: flex;
   align-items: stretch;
   gap: 0;
-  height: 200px;
+  height: 160px;
 }
 
 .weights li {

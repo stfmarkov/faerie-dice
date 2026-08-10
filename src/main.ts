@@ -183,6 +183,7 @@ import './style.css'
   const resultDieEl = document.querySelector<HTMLElement>('#result-die')!;
   const resultDieShapeEl = document.querySelector<HTMLElement>('#result-die-shape')!;
   const weightsEl = document.querySelector<HTMLUListElement>('#weights')!;
+  const sumDistributionEl = document.querySelector<HTMLUListElement>('#sum-distribution')!;
   const probabilityEl = document.querySelector<HTMLElement>('#probability-drawer')!;
   const probabilityToggleBtn = document.querySelector<HTMLButtonElement>('#probability-toggle')!;
   const probabilityCloseBtn = document.querySelector<HTMLButtonElement>('#probability-close')!;
@@ -473,6 +474,107 @@ import './style.css'
     }).join('');
   };
 
+  const renderSumDistribution = () => {
+    const distribution = sumProbabilityDistribution();
+    if (distribution.length === 0) {
+      sumDistributionEl.innerHTML = '';
+      return;
+    }
+
+    const maxChance = Math.max(...distribution.map(entry => entry.chance));
+    const minValue = distribution[0].value;
+    const maxValue = distribution[distribution.length - 1].value;
+    const middle = Math.round((minValue + maxValue) / 2);
+    const hitSum = lastRolls.length > 0
+      ? lastRolls.reduce((acc, roll) => acc + roll, 0)
+      : null;
+
+    sumDistributionEl.style.setProperty('--sides', String(distribution.length));
+    sumDistributionEl.innerHTML = distribution.map(entry => {
+      const height = maxChance > 0 ? Math.max(0, (entry.chance / maxChance) * 100) : 0;
+      const hitClass = hitSum === entry.value ? 'hit' : '';
+      const isKeyLabel =
+        entry.value === minValue ||
+        entry.value === maxValue ||
+        entry.value === middle;
+      const labelClass = isKeyLabel ? 'key-label' : '';
+      return `
+        <li class="${hitClass} ${labelClass}" title="${entry.value}: ${formatChance(entry.chance)}">
+          <span class="bar-track">
+            <span class="bar" style="height: ${height}%"></span>
+          </span>
+          <span class="face">${entry.value}</span>
+        </li>
+      `;
+    }).join('');
+  };
+
+  const calculateCombinations = (arrays: number[][]) => {    
+    const numOfArrays = arrays.length
+    const possibleCombinations: number[][] = []
+
+    const loop = (numOfExecutions: number, current: number[] = []) => {
+        const iteration = numOfArrays - numOfExecutions ;
+        const arr = arrays[iteration]
+        for (let i = 0; i < arr.length; i++) {
+            if(numOfExecutions === 1) {
+                possibleCombinations.push([...current, arr[i]])
+            } else {
+                loop(numOfExecutions-1, [...current, arr[i]])
+            }
+        }
+    }
+
+
+    loop(numOfArrays)
+    return possibleCombinations;
+}
+
+  const getNumberOfWaysToGetValue = (value: number, numberOfRolls: number, sides: number) => {
+    let ways = 0;
+    if (value < numberOfRolls || value > numberOfRolls * sides) {
+      return ways;
+    }
+
+    const possibleDiceRolls: number[][] = [];
+
+    for (let j = 1; j <= numberOfRolls; j++) {
+      possibleDiceRolls.push([...Array(sides).keys()].map(i => i + 1));
+    }
+
+    const combinations = calculateCombinations(possibleDiceRolls);
+
+    for (const combination of combinations) {
+      const sum = combination.reduce((acc, curr) => acc + curr, 0);
+      if (sum === value) {
+        ways++;
+      }
+    }
+
+    return ways;
+  };
+
+
+  const sumProbabilityDistribution = () => {
+    const numberOfRolls = getRollCount();
+    const minValue = numberOfRolls;
+    const maxValue = numberOfRolls * selectedDice.sides;
+
+    const distribution: Array<{ value: number, chance: number }> = [];
+
+    for (let i = minValue; i <= maxValue; i++) {
+      console.log(i, numberOfRolls, selectedDice.sides, 'i, numberOfRolls, selectedDice.sides');
+      const numberOfWaysToGetThisValue = getNumberOfWaysToGetValue(i, numberOfRolls, selectedDice.sides);
+      console.log(numberOfWaysToGetThisValue, 'numberOfWaysToGetThisValue');
+      distribution.push({
+        value: i,
+        chance: Math.pow(1 / selectedDice.sides, numberOfRolls) * numberOfWaysToGetThisValue * 100,
+      });
+    }
+
+    return distribution;
+  };
+
   const selectDie = (name: string) => {
     const nextDice = diceTypes.find(d => d.name === name);
     if (!nextDice) {
@@ -563,6 +665,7 @@ import './style.css'
     setResultDisplay(value, meta);
     renderProbabilityConfig();
     renderWeights();
+    renderSumDistribution();
   });
 
   resetBtn.addEventListener('click', () => {
