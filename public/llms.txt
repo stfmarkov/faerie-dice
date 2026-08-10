@@ -1,9 +1,9 @@
 # Faerie Dice
 
-> Faerie Dice is a browser tool for rolling dice with weighted probabilities that shift after each roll.
+> Faerie Dice is a browser tool for rolling polyhedral dice in Normal, Weighted (memory-shifting odds), or Average (bell-curve) mode.
 
-Faerie Dice lets you roll common polyhedral dice (d4 through d100). When weighted mode is on, each result slightly reduces that face's chance and redistributes probability across the others — so rolls feel less fair over time. You can also combine multiple dice with advantage, disadvantage, or sum. The probability engine shows single-die face weights and, when an aggregation mode is selected, the distribution of the reported result after each roll.
+Faerie Dice supports d4 through d100. **Weighted** mode reduces a rolled face’s chance (tunable drop strength) and shifts probability toward the opposite high/low half of the die. **Average** mode reports one face drawn as the mean of N fair rolls (tunable curve rolls, default 2), so extremes are rare. Rolls can be combined with advantage, disadvantage, or sum. A settings drawer holds mode-specific controls; the probability engine shows single-die face chances and, when aggregation is on, the distribution of the reported result — using live Faerie weights in Weighted mode.
 
 ## Pages
 
-- [Faerie Dice](/): Interactive weighted dice roller
+- [Faerie Dice](/): Interactive dice roller

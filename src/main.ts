@@ -559,9 +559,16 @@ import './style.css'
       disadvantage: 'Disadvantage distribution',
     };
 
+    const modeSuffix =
+      pickMode === 'weighted'
+        ? ' (weighted)'
+        : pickMode === 'average'
+          ? ' (average)'
+          : '';
+
     aggregatedGraphEl.hidden = false;
-    aggregatedDistributionLabelEl.textContent = labels[resultMode];
-    aggregatedGraphEl.setAttribute('aria-label', labels[resultMode]);
+    aggregatedDistributionLabelEl.textContent = `${labels[resultMode]}${modeSuffix}`;
+    aggregatedGraphEl.setAttribute('aria-label', `${labels[resultMode]}${modeSuffix}`);
 
     if (distribution.length === 0) {
       aggregatedDistributionEl.innerHTML = '';
@@ -636,13 +643,26 @@ import './style.css'
   };
 
   // Face probabilities as fractions (sum to 1) for the active pick mode.
-  // Weighted still uses fair faces here — live weights on aggregated graphs are still open.
+  // Weighted uses live Faerie weights (i.i.d. snapshot of current odds).
+  // Multi-die weighted rolls still update between dice; the graph freezes
+  // tonight's face chances to answer “what do reported results look like now?”
   const getPickFaceProbabilities = () => {
     const sides = selectedDice.sides;
+    let raw: number[];
+
     if (pickMode === 'average') {
-      return averageCurveFaceChances(sides).map(face => face.chance / 100);
+      raw = averageCurveFaceChances(sides).map(face => face.chance / 100);
+    } else if (pickMode === 'weighted') {
+      raw = getFaceChances(selectedDice).map(face => face.chance / 100);
+    } else {
+      raw = Array.from({ length: sides }, () => 1 / sides);
     }
-    return Array.from({ length: sides }, () => 1 / sides);
+
+    const total = raw.reduce((sum, chance) => sum + chance, 0);
+    if (total <= 0) {
+      return Array.from({ length: sides }, () => 1 / sides);
+    }
+    return raw.map(chance => chance / total);
   };
 
   const sumProbabilityDistribution = () => {
@@ -842,6 +862,7 @@ import './style.css'
     lastRolls = [];
     setResultDisplay('—', `${selectedDice.name} reset to fair odds.`);
     renderWeights();
+    renderAggregatedDistribution();
   });
 
   probabilityToggleBtn.addEventListener('click', () => {
