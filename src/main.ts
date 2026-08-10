@@ -509,66 +509,40 @@ import './style.css'
     }).join('');
   };
 
-  const calculateCombinations = (arrays: number[][]) => {    
-    const numOfArrays = arrays.length
-    const possibleCombinations: number[][] = []
+  // ways[s] = number of ways to total s with identical fair dice (faces 1..sides)
+  const sumWaysDistribution = (numberOfRolls: number, sides: number) => {
+    let ways = [1]; // 0 dice → sum 0 has 1 way
 
-    const loop = (numOfExecutions: number, current: number[] = []) => {
-        const iteration = numOfArrays - numOfExecutions ;
-        const arr = arrays[iteration]
-        for (let i = 0; i < arr.length; i++) {
-            if(numOfExecutions === 1) {
-                possibleCombinations.push([...current, arr[i]])
-            } else {
-                loop(numOfExecutions-1, [...current, arr[i]])
-            }
+    for (let die = 0; die < numberOfRolls; die++) {
+      const next: number[] = Array(ways.length + sides).fill(0);
+      for (let sum = 0; sum < ways.length; sum++) {
+        if (ways[sum] === 0) {
+          continue;
         }
-    }
-
-
-    loop(numOfArrays)
-    return possibleCombinations;
-}
-
-  const getNumberOfWaysToGetValue = (value: number, numberOfRolls: number, sides: number) => {
-    let ways = 0;
-    if (value < numberOfRolls || value > numberOfRolls * sides) {
-      return ways;
-    }
-
-    const possibleDiceRolls: number[][] = [];
-
-    for (let j = 1; j <= numberOfRolls; j++) {
-      possibleDiceRolls.push([...Array(sides).keys()].map(i => i + 1));
-    }
-
-    const combinations = calculateCombinations(possibleDiceRolls);
-
-    for (const combination of combinations) {
-      const sum = combination.reduce((acc, curr) => acc + curr, 0);
-      if (sum === value) {
-        ways++;
+        for (let face = 1; face <= sides; face++) {
+          next[sum + face] += ways[sum];
+        }
       }
+      ways = next;
     }
 
     return ways;
   };
 
-
   const sumProbabilityDistribution = () => {
     const numberOfRolls = getRollCount();
+    const sides = selectedDice.sides;
+    const ways = sumWaysDistribution(numberOfRolls, sides);
+    const totalOutcomes = Math.pow(sides, numberOfRolls);
     const minValue = numberOfRolls;
-    const maxValue = numberOfRolls * selectedDice.sides;
+    const maxValue = numberOfRolls * sides;
 
     const distribution: Array<{ value: number, chance: number }> = [];
 
-    for (let i = minValue; i <= maxValue; i++) {
-      console.log(i, numberOfRolls, selectedDice.sides, 'i, numberOfRolls, selectedDice.sides');
-      const numberOfWaysToGetThisValue = getNumberOfWaysToGetValue(i, numberOfRolls, selectedDice.sides);
-      console.log(numberOfWaysToGetThisValue, 'numberOfWaysToGetThisValue');
+    for (let value = minValue; value <= maxValue; value++) {
       distribution.push({
-        value: i,
-        chance: Math.pow(1 / selectedDice.sides, numberOfRolls) * numberOfWaysToGetThisValue * 100,
+        value,
+        chance: ((ways[value] ?? 0) / totalOutcomes) * 100,
       });
     }
 
