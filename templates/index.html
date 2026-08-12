@@ -13,7 +13,8 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400&family=JetBrains+Mono:wght@500;700&family=Space+Grotesk:wght@600;700&display=swap"
     rel="stylesheet" />
   <title>Faerie Dice</title>
-  {{if .Stylesheet}}<link rel="stylesheet" crossorigin href="{{.Stylesheet}}">{{end}}
+  {{if .Stylesheet}}
+  <link rel="stylesheet" crossorigin href="{{.Stylesheet}}">{{end}}
   <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js" defer></script>
   <script type="module" crossorigin src="{{.Script}}"></script>
 </head>
@@ -22,46 +23,40 @@
   <header class="topbar">
     <div class="brand">Faerie Dice</div>
     <div class="topbar-actions">
-      <button
-        type="button"
-        id="history-btn"
-        class="topbar-btn"
-        hx-post="/history"
-        hx-target="#history-root"
-        hx-swap="innerHTML"
-        hx-vals="js:{history: JSON.stringify(window.__rollHistory ?? [])}"
-      >
-        History
+      <button type="button" id="history-btn" class="topbar-btn" aria-label="History" hx-post="/history"
+        hx-target="#history-root" hx-swap="innerHTML"
+        hx-vals="js:{history: JSON.stringify(window.__rollHistory ?? [])}">
+        <svg class="topbar-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+            d="M4.5 12a7.5 7.5 0 1 0 1.7-4.9" />
+          <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+            d="M4.5 5.5v4h4M12 8v4.5l3 1.5" />
+        </svg>
+        <span class="topbar-btn-label">History</span>
       </button>
-      <button
-        type="button"
-        id="settings-toggle"
-        class="topbar-btn"
-        aria-expanded="false"
-        aria-controls="settings-drawer"
-      >
-        Settings
+      <button type="button" id="settings-toggle" class="topbar-btn" aria-label="Settings" aria-expanded="false"
+        aria-controls="settings-drawer">
+        <svg class="topbar-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5" />
+          <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+            d="M12 3.5v2m0 13v2m8.5-8.5h-2m-13 0h-2m14.6-5.9-1.4 1.4M7.3 16.7l-1.4 1.4m0-11.8 1.4 1.4m9.8 9.8 1.4 1.4" />
+        </svg>
+        <span class="topbar-btn-label">Settings</span>
       </button>
-      <button
-        type="button"
-        id="probability-toggle"
-        class="topbar-btn probability-toggle"
-        aria-expanded="false"
-        aria-controls="probability-drawer"
-      >
-        Probability
+      <button type="button" id="probability-toggle" class="topbar-btn probability-toggle" aria-label="Probability"
+        aria-expanded="false" aria-controls="probability-drawer">
+        <svg class="topbar-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+            d="M6 18V11m6 7V6m6 12v-5" />
+        </svg>
+        <span class="topbar-btn-label">Probability</span>
       </button>
     </div>
   </header>
 
   <div id="history-root"></div>
 
-  <aside
-    class="settings"
-    id="settings-drawer"
-    aria-label="Mode settings"
-    data-open="false"
-  >
+  <aside class="settings" id="settings-drawer" aria-label="Mode settings" data-open="false">
     <div class="settings-header">
       <div class="settings-heading">
         <h2 class="control-label">Settings</h2>
@@ -81,18 +76,8 @@
             <label class="control-label" for="weighted-drop-slider">Drop strength</label>
             <span class="settings-slider-value" id="weighted-drop-value">20%</span>
           </div>
-          <input
-            type="range"
-            id="weighted-drop-slider"
-            min="0"
-            max="100"
-            step="1"
-            value="20"
-            aria-valuemin="0"
-            aria-valuemax="100"
-            aria-valuenow="20"
-            aria-valuetext="20 percent"
-          />
+          <input type="range" id="weighted-drop-slider" min="0" max="100" step="1" value="20" aria-valuemin="0"
+            aria-valuemax="100" aria-valuenow="20" aria-valuetext="20 percent" />
           <p class="settings-hint">
             How much the rolled face's chance drops after each roll (share of that face's base chance).
           </p>
@@ -102,9 +87,11 @@
         <div class="control-block">
           <label class="control-label" for="average-curve-rolls">Curve rolls</label>
           <div class="stepper">
-            <button type="button" id="average-curve-rolls-dec" class="stepper-btn" aria-label="Decrease curve rolls">−</button>
+            <button type="button" id="average-curve-rolls-dec" class="stepper-btn"
+              aria-label="Decrease curve rolls">−</button>
             <input type="number" id="average-curve-rolls" min="2" max="20" value="2" />
-            <button type="button" id="average-curve-rolls-inc" class="stepper-btn" aria-label="Increase curve rolls">+</button>
+            <button type="button" id="average-curve-rolls-inc" class="stepper-btn"
+              aria-label="Increase curve rolls">+</button>
           </div>
           <p class="settings-hint">
             Each result is the mean of this many fair rolls. Higher values tighten the bell toward the middle.
@@ -134,62 +121,57 @@
 
       <section class="tray">
         <div class="tray-grid">
-          <div class="control-block">
-            <label class="control-label" for="number-of-rolls">Number of rolls</label>
-            <div class="stepper">
-              <button type="button" id="rolls-dec" class="stepper-btn" aria-label="Decrease rolls">−</button>
-              <input type="number" id="number-of-rolls" min="1" max="100" value="1" />
-              <button type="button" id="rolls-inc" class="stepper-btn" aria-label="Increase rolls">+</button>
+          <div class="tray-group">
+            <div class="control-block">
+              <label class="control-label" for="number-of-rolls">Number of rolls</label>
+              <div class="stepper">
+                <button type="button" id="rolls-dec" class="stepper-btn" aria-label="Decrease rolls">−</button>
+                <input type="number" id="number-of-rolls" min="1" max="100" value="1" />
+                <button type="button" id="rolls-inc" class="stepper-btn" aria-label="Increase rolls">+</button>
+              </div>
+            </div>
+
+            <div class="control-block" id="dice-per-roll-block" hidden>
+              <label class="control-label" for="dice-per-roll">Dice per roll</label>
+              <div class="stepper">
+                <button type="button" id="dice-per-roll-dec" class="stepper-btn"
+                  aria-label="Decrease dice per roll">−</button>
+                <input type="number" id="dice-per-roll" min="2" max="100" value="2" />
+                <button type="button" id="dice-per-roll-inc" class="stepper-btn"
+                  aria-label="Increase dice per roll">+</button>
+              </div>
             </div>
           </div>
 
-          <div class="control-block" id="dice-per-roll-block" hidden>
-            <label class="control-label" for="dice-per-roll">Dice per roll</label>
-            <div class="stepper">
-              <button type="button" id="dice-per-roll-dec" class="stepper-btn" aria-label="Decrease dice per roll">−</button>
-              <input type="number" id="dice-per-roll" min="2" max="100" value="2" />
-              <button type="button" id="dice-per-roll-inc" class="stepper-btn" aria-label="Increase dice per roll">+</button>
+          <div class="tray-group">
+            <div class="control-block">
+              <span class="control-label" id="mode-label">Mode</span>
+              <div class="listbox" id="mode-listbox-root">
+                <button type="button" class="listbox-trigger" id="mode-trigger" aria-haspopup="listbox"
+                  aria-expanded="false" aria-controls="mode-listbox"
+                  aria-labelledby="mode-label mode-trigger">Weighted</button>
+                <ul class="listbox-options" id="mode-listbox" role="listbox" aria-labelledby="mode-label" hidden>
+                  <li role="option" data-value="fair" aria-selected="false" tabindex="-1">Normal</li>
+                  <li role="option" data-value="weighted" aria-selected="true" tabindex="-1">Weighted</li>
+                  <li role="option" data-value="average" aria-selected="false" tabindex="-1">Average</li>
+                </ul>
+              </div>
             </div>
-          </div>
 
-          <div class="control-block">
-            <span class="control-label" id="mode-label">Mode</span>
-            <div class="listbox" id="mode-listbox-root">
-              <button
-                type="button"
-                class="listbox-trigger"
-                id="mode-trigger"
-                aria-haspopup="listbox"
-                aria-expanded="false"
-                aria-controls="mode-listbox"
-                aria-labelledby="mode-label mode-trigger"
-              >Weighted</button>
-              <ul class="listbox-options" id="mode-listbox" role="listbox" aria-labelledby="mode-label" hidden>
-                <li role="option" data-value="fair" aria-selected="false" tabindex="-1">Normal</li>
-                <li role="option" data-value="weighted" aria-selected="true" tabindex="-1">Weighted</li>
-                <li role="option" data-value="average" aria-selected="false" tabindex="-1">Average</li>
-              </ul>
-            </div>
-          </div>
-
-          <div class="control-block">
-            <span class="control-label" id="aggregation-label">Aggregation</span>
-            <div class="listbox" id="aggregation-listbox-root">
-              <button
-                type="button"
-                class="listbox-trigger"
-                id="aggregation-trigger"
-                aria-haspopup="listbox"
-                aria-expanded="false"
-                aria-controls="aggregation-listbox"
-                aria-labelledby="aggregation-label aggregation-trigger"
-              >None</button>
-              <ul class="listbox-options" id="aggregation-listbox" role="listbox" aria-labelledby="aggregation-label" hidden>
-                <li role="option" data-value="" aria-selected="true" tabindex="-1">None</li>
-                <li role="option" data-value="advantage" aria-selected="false" tabindex="-1">Advantage</li>
-                <li role="option" data-value="disadvantage" aria-selected="false" tabindex="-1">Disadvantage</li>
-                <li role="option" data-value="sum" aria-selected="false" tabindex="-1">Sum</li>
-              </ul>
+            <div class="control-block">
+              <span class="control-label" id="aggregation-label">Aggregation</span>
+              <div class="listbox" id="aggregation-listbox-root">
+                <button type="button" class="listbox-trigger" id="aggregation-trigger" aria-haspopup="listbox"
+                  aria-expanded="false" aria-controls="aggregation-listbox"
+                  aria-labelledby="aggregation-label aggregation-trigger">None</button>
+                <ul class="listbox-options" id="aggregation-listbox" role="listbox" aria-labelledby="aggregation-label"
+                  hidden>
+                  <li role="option" data-value="" aria-selected="true" tabindex="-1">None</li>
+                  <li role="option" data-value="advantage" aria-selected="false" tabindex="-1">Advantage</li>
+                  <li role="option" data-value="disadvantage" aria-selected="false" tabindex="-1">Disadvantage</li>
+                  <li role="option" data-value="sum" aria-selected="false" tabindex="-1">Sum</li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
@@ -200,18 +182,14 @@
       </section>
     </main>
 
-    <aside
-      class="probability"
-      id="probability-drawer"
-      aria-label="Face weights"
-      data-open="false"
-    >
+    <aside class="probability" id="probability-drawer" aria-label="Face weights" data-open="false">
       <div class="probability-header">
         <div class="probability-heading">
           <h2 class="control-label">Probability engine</h2>
           <span class="probability-config" id="probability-config">Current config: 1d20</span>
         </div>
         <div class="probability-header-actions">
+          <button type="button" id="probability-roll-btn" class="probability-roll">Roll</button>
           <button type="button" id="reset-btn" class="secondary">Reset weights</button>
           <button type="button" id="probability-close" class="probability-close" aria-label="Close probability engine">
             Close

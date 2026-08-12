@@ -206,6 +206,7 @@ import './style.css'
   const dicePerRollDecBtn = document.querySelector<HTMLButtonElement>('#dice-per-roll-dec')!;
   const dicePerRollIncBtn = document.querySelector<HTMLButtonElement>('#dice-per-roll-inc')!;
   const rollBtn = document.querySelector<HTMLButtonElement>('#roll-btn')!;
+  const probabilityRollBtn = document.querySelector<HTMLButtonElement>('#probability-roll-btn')!;
   const resetBtn = document.querySelector<HTMLButtonElement>('#reset-btn')!;
   const resultValueEl = document.querySelector<HTMLParagraphElement>('#result-value')!;
   const resultMetaEl = document.querySelector<HTMLParagraphElement>('#result-meta')!;
@@ -915,7 +916,7 @@ import './style.css'
     renderAggregatedDistribution();
   });
 
-  rollBtn.addEventListener('click', () => {
+  const performRoll = () => {
     const rollCount = getRollCount();
     setRollCount(rollCount);
 
@@ -952,7 +953,10 @@ import './style.css'
     renderProbabilityConfig();
     renderWeights();
     renderAggregatedDistribution();
-  });
+  };
+
+  rollBtn.addEventListener('click', performRoll);
+  probabilityRollBtn.addEventListener('click', performRoll);
 
   resetBtn.addEventListener('click', () => {
     selectedDice.modifiers = [];
