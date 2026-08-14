@@ -7,9 +7,13 @@
     "dev": "vite build --watch",
     "build": "tsc && vite build",
     "serve": "go run ./cmd/server",
-    "build:serve": "npm run build && go run ./cmd/server"
+    "build:serve": "npm run build && go run ./cmd/server",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.2.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.0"
   }
