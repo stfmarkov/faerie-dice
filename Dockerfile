@@ -2,6 +2,8 @@
 FROM node:22-alpine AS frontend
 WORKDIR /app
 COPY package.json package-lock.json ./
+# Playwright is local e2e only — never download browsers in the image build.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN npm ci
 COPY tsconfig.json vite.config.ts ./
 COPY src ./src
