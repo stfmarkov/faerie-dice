@@ -89,6 +89,22 @@ export async function setNumberOfRolls(page: Page, count: number) {
   await expect(input).toHaveValue(String(count));
 }
 
+export async function setDicePerRoll(page: Page, count: number) {
+  const input = page.locator('#dice-per-roll');
+  let current = Number(await input.inputValue());
+
+  while (current < count) {
+    await page.getByRole('button', { name: 'Increase dice per roll' }).click();
+    current = Number(await input.inputValue());
+  }
+  while (current > count) {
+    await page.getByRole('button', { name: 'Decrease dice per roll' }).click();
+    current = Number(await input.inputValue());
+  }
+
+  await expect(input).toHaveValue(String(count));
+}
+
 export async function openHistory(page: Page) {
   await page.getByRole('button', { name: 'History' }).click();
   await expect(page.getByRole('dialog', { name: 'Roll history' })).toBeVisible();

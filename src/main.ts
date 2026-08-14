@@ -432,7 +432,7 @@ import './style.css'
     rollsInput.value = String(Math.min(100, Math.max(1, value)));
   };
 
-  const isAdvDisadv = () => resultMode === 'advantage' || resultMode === 'disadvantage';
+  const usesDicePerRoll = () => resultMode !== null;
 
   const getDicePerRoll = () => {
     const value = Number.parseInt(dicePerRollInput.value, 10);
@@ -447,8 +447,8 @@ import './style.css'
   };
 
   const renderDicePerRollControl = () => {
-    dicePerRollBlock.hidden = !isAdvDisadv();
-    if (isAdvDisadv()) {
+    dicePerRollBlock.hidden = !usesDicePerRoll();
+    if (usesDicePerRoll()) {
       setDicePerRoll(getDicePerRoll());
     }
   };
@@ -481,17 +481,26 @@ import './style.css'
     return undefined;
   };
 
+  const aggregationLabel = (mode: ResultMode) => {
+    if (mode === 'advantage') {
+      return 'Advantage';
+    }
+    if (mode === 'disadvantage') {
+      return 'Disadvantage';
+    }
+    return 'Sum';
+  };
+
   const formatRollResult = (groups: RollGroup[], mode: ResultMode | null, picking: PickMode) => {
     const modeLabel = pickModeLabel(picking);
     const dieName = selectedDice.name.toUpperCase();
 
-    if (mode === 'advantage' || mode === 'disadvantage') {
+    if (mode) {
       const dicePerRoll = groups[0]?.faces.length ?? getDicePerRoll();
-      const modeName = mode === 'advantage' ? 'Advantage' : 'Disadvantage';
       const formula = groups.length === 1
         ? `${dicePerRoll}${dieName}`
         : `${groups.length}× ${dicePerRoll}${dieName}`;
-      const keptValues = groups.map(group => group.value);
+      const reported = groups.map(group => group.value);
       const rollsText = groups.map(group => {
         const facesText = group.faces.join(', ');
         return `[${facesText}]→${group.value}`;
@@ -499,8 +508,8 @@ import './style.css'
 
       return {
         value: groups.length === 1 ? String(groups[0].value) : `${groups.length}×`,
-        meta: `${formula}: ${rollsText} → <span class="mode">${modeName} (${modeLabel})</span>`,
-        reported: keptValues,
+        meta: `${formula}: ${rollsText} → <span class="mode">${aggregationLabel(mode)} (${modeLabel})</span>`,
+        reported,
       };
     }
 
@@ -508,15 +517,6 @@ import './style.css'
     const rollsText = faces.join(', ');
     const count = faces.length;
     const formula = `${count}${dieName}`;
-
-    if (mode === 'sum') {
-      const total = totalRolls(faces);
-      return {
-        value: String(total),
-        meta: `${formula}: ${rollsText} → Sum <span class="mode">(${modeLabel})</span>`,
-        reported: [total],
-      };
-    }
 
     if (count === 1) {
       return {
@@ -539,17 +539,17 @@ import './style.css'
 
   const renderProbabilityConfig = () => {
     const die = selectedDice.name;
-    if (resultMode === 'advantage' || resultMode === 'disadvantage') {
+    if (resultMode) {
       const rolls = getRollCount();
       const dice = getDicePerRoll();
-      const label = resultMode === 'advantage' ? 'advantage' : 'disadvantage';
+      const label = resultMode === 'advantage'
+        ? 'advantage'
+        : resultMode === 'disadvantage'
+          ? 'disadvantage'
+          : 'sum';
       probabilityConfigEl.textContent = rolls === 1
         ? `Current config: ${dice}${die} ${label}`
         : `Current config: ${rolls}× ${dice}${die} ${label}`;
-      return;
-    }
-    if (resultMode === 'sum') {
-      probabilityConfigEl.textContent = `Current config: ${getRollCount()}${die} sum`;
       return;
     }
     probabilityConfigEl.textContent = `Current config: ${getRollCount()}${die}`;
@@ -723,7 +723,7 @@ import './style.css'
   };
 
   const sumProbabilityDistribution = () => {
-    const numberOfDice = getRollCount();
+    const numberOfDice = getDicePerRoll();
     const sides = selectedDice.sides;
     const faceProb = getPickFaceProbabilities();
 
@@ -922,21 +922,22 @@ import './style.css'
 
     const groups: RollGroup[] = [];
 
-    if (resultMode === 'advantage' || resultMode === 'disadvantage') {
+    if (resultMode) {
       const dicePerRoll = getDicePerRoll();
       setDicePerRoll(dicePerRoll);
-      const keepHighest = resultMode === 'advantage';
       for (let rollIndex = 0; rollIndex < rollCount; rollIndex++) {
         const faces = Array.from({ length: dicePerRoll }, () => rollDice(selectedDice, pickMode));
-        const kept = keepHighest ? Math.max(...faces) : Math.min(...faces);
-        groups.push({ faces, value: kept });
+        const value =
+          resultMode === 'advantage'
+            ? Math.max(...faces)
+            : resultMode === 'disadvantage'
+              ? Math.min(...faces)
+              : totalRolls(faces);
+        groups.push({ faces, value });
       }
-    } else if (resultMode === 'sum') {
-      const faces = Array.from({ length: rollCount }, () => rollDice(selectedDice, pickMode));
-      groups.push({ faces, value: totalRolls(faces) });
     } else {
-      const faces = Array.from({ length: rollCount }, () => rollDice(selectedDice, pickMode));
-      for (const face of faces) {
+      for (let rollIndex = 0; rollIndex < rollCount; rollIndex++) {
+        const face = rollDice(selectedDice, pickMode);
         groups.push({ faces: [face], value: face });
       }
     }
