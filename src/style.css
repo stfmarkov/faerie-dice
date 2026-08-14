@@ -48,9 +48,7 @@
 
 body {
   margin: 0;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  width: 100dvw;
   background: #0a0a0a;
   color: var(--on-surface);
   overflow-x: clip;
@@ -96,6 +94,7 @@ button {
   display: grid;
   grid-template-columns: 1fr;
   min-height: 0;
+  overflow: clip;
 }
 
 .dice-tray {
@@ -533,7 +532,7 @@ input[type="number"]:focus {
 }
 
 .settings {
-  position: fixed;
+  position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
@@ -547,6 +546,7 @@ input[type="number"]:focus {
   transition: transform 200ms ease;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .settings[data-open="true"] {
@@ -915,15 +915,18 @@ input[type="range"]::-moz-range-thumb {
 
 @media (min-width: 1600px) {
   .shell {
-    grid-template-columns: 5.5rem minmax(0, 1fr) minmax(16rem, 20rem);
+    grid-template-columns: 5.5rem minmax(0, 1fr) minmax(16rem, 20rem) minmax(16rem, 20rem);
   }
 
   .probability-toggle,
-  .probability-close {
+  .probability-close,
+  .settings-toggle,
+  .settings-close {
     display: none;
   }
 
-  .probability {
+  .probability,
+  .settings {
     position: static;
     width: auto;
     transform: none;

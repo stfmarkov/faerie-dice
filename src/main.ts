@@ -349,7 +349,7 @@ import './style.css'
     };
   };
 
-  const isProbabilityDrawer = () => window.matchMedia('(max-width: 1599px)').matches;
+  const isOverlayDrawer = () => window.matchMedia('(max-width: 1599px)').matches;
 
   const setProbabilityOpen = (open: boolean) => {
     probabilityEl.dataset.open = String(open);
@@ -969,10 +969,14 @@ import './style.css'
   });
 
   probabilityToggleBtn.addEventListener('click', () => {
-    if (!isProbabilityDrawer()) {
+    if (!isOverlayDrawer()) {
       return;
     }
-    setProbabilityOpen(probabilityEl.dataset.open !== 'true');
+    const next = probabilityEl.dataset.open !== 'true';
+    setProbabilityOpen(next);
+    if (next) {
+      setSettingsOpen(false);
+    }
   });
 
   probabilityCloseBtn.addEventListener('click', () => {
@@ -980,7 +984,14 @@ import './style.css'
   });
 
   settingsToggleBtn.addEventListener('click', () => {
-    setSettingsOpen(settingsEl.dataset.open !== 'true');
+    if (!isOverlayDrawer()) {
+      return;
+    }
+    const next = settingsEl.dataset.open !== 'true';
+    setSettingsOpen(next);
+    if (next) {
+      setProbabilityOpen(false);
+    }
   });
 
   settingsCloseBtn.addEventListener('click', () => {
@@ -1013,11 +1024,11 @@ import './style.css'
         closeHistoryModal();
         return;
       }
-      if (settingsEl.dataset.open === 'true') {
+      if (settingsEl.dataset.open === 'true' && isOverlayDrawer()) {
         setSettingsOpen(false);
         return;
       }
-      if (probabilityEl.dataset.open === 'true' && isProbabilityDrawer()) {
+      if (probabilityEl.dataset.open === 'true' && isOverlayDrawer()) {
         setProbabilityOpen(false);
       }
     }
