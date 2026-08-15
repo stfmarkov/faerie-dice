@@ -224,9 +224,7 @@ import './style.css'
   const settingsToggleBtn = document.querySelector<HTMLButtonElement>('#settings-toggle')!;
   const settingsCloseBtn = document.querySelector<HTMLButtonElement>('#settings-close')!;
   const settingsModeLabelEl = document.querySelector<HTMLElement>('#settings-mode-label')!;
-  const settingsFairEl = document.querySelector<HTMLElement>('#settings-fair')!;
-  const settingsWeightedEl = document.querySelector<HTMLElement>('#settings-weighted')!;
-  const settingsAverageEl = document.querySelector<HTMLElement>('#settings-average')!;
+  const themeToggleBtn = document.querySelector<HTMLButtonElement>('#theme-toggle')!;
   const averageCurveRollsInput = document.querySelector<HTMLInputElement>('#average-curve-rolls')!;
   const averageCurveRollsDecBtn = document.querySelector<HTMLButtonElement>('#average-curve-rolls-dec')!;
   const averageCurveRollsIncBtn = document.querySelector<HTMLButtonElement>('#average-curve-rolls-inc')!;
@@ -386,17 +384,39 @@ import './style.css'
     settingsToggleBtn.setAttribute('aria-expanded', String(open));
   };
 
+  type Theme = 'light' | 'dark';
+  const THEME_KEY = 'faerie-dice-theme';
+
+  const readStoredTheme = (): Theme => {
+    try {
+      const stored = localStorage.getItem(THEME_KEY);
+      if (stored === 'light' || stored === 'dark') {
+        return stored;
+      }
+    } catch {
+      // Private mode or blocked storage — keep the default dark theme.
+    }
+    return 'dark';
+  };
+
+  const applyTheme = (theme: Theme) => {
+    document.documentElement.dataset.theme = theme;
+    themeToggleBtn.setAttribute('aria-checked', String(theme === 'light'));
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      // Ignore persistence failures; the in-session theme still applies.
+    }
+  };
+
   const pickModeTitle: Record<PickMode, string> = {
     fair: 'Normal',
     weighted: 'Weighted',
     average: 'Average',
   };
 
-  const renderSettingsPanels = () => {
+  const renderSettingsMode = () => {
     settingsModeLabelEl.textContent = pickModeTitle[pickMode];
-    settingsFairEl.hidden = pickMode !== 'fair';
-    settingsWeightedEl.hidden = pickMode !== 'weighted';
-    settingsAverageEl.hidden = pickMode !== 'average';
   };
 
   const renderWeightedDropControl = () => {
@@ -862,7 +882,7 @@ import './style.css'
   const setPickMode = (next: PickMode) => {
     pickMode = next;
     renderModeControls();
-    renderSettingsPanels();
+    renderSettingsMode();
     renderWeights();
     renderAggregatedDistribution();
 
@@ -1023,6 +1043,11 @@ import './style.css'
     setSettingsOpen(false);
   });
 
+  themeToggleBtn.addEventListener('click', () => {
+    const next: Theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    applyTheme(next);
+  });
+
   weightedDropSlider.addEventListener('input', () => {
     const next = Number.parseInt(weightedDropSlider.value, 10);
     weightedDropPercent = Number.isFinite(next)
@@ -1090,11 +1115,12 @@ import './style.css'
   };
 
   const main = () => {
+    applyTheme(readStoredTheme());
     renderStageDie();
     renderDieSelect();
     renderModeControls();
     renderResultModeControls();
-    renderSettingsPanels();
+    renderSettingsMode();
     renderWeightedDropControl();
     setAverageCurveRolls(averageCurveRolls);
     renderProbabilityConfig();

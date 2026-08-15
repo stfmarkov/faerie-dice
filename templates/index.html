@@ -13,6 +13,14 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400&family=JetBrains+Mono:wght@500;700&family=Space+Grotesk:wght@600;700&display=swap"
     rel="stylesheet" />
   <title>Faerie Dice</title>
+  <script>
+    try {
+      var theme = localStorage.getItem('faerie-dice-theme');
+      if (theme === 'light' || theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', theme);
+      }
+    } catch (e) { }
+  </script>
   {{if .Stylesheet}}
   <link rel="stylesheet" crossorigin href="{{.Stylesheet}}">{{end}}
   <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js" defer></script>
@@ -37,9 +45,11 @@
       <button type="button" id="settings-toggle" class="topbar-btn settings-toggle" aria-label="Settings"
         aria-expanded="false" aria-controls="settings-drawer">
         <svg class="topbar-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5" />
-          <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
-            d="M12 3.5v2m0 13v2m8.5-8.5h-2m-13 0h-2m14.6-5.9-1.4 1.4M7.3 16.7l-1.4 1.4m0-11.8 1.4 1.4m9.8 9.8 1.4 1.4" />
+          <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+            d="M4 6h8M16 6h4M4 12h4M12 12h8M4 18h10M18 18h2" />
+          <circle cx="14" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.5" />
+          <circle cx="10" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.5" />
+          <circle cx="16" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.5" />
         </svg>
         <span class="topbar-btn-label">Settings</span>
       </button>
@@ -163,7 +173,7 @@
       </div>
     </aside>
 
-    <aside class="settings" id="settings-drawer" aria-label="Mode settings" data-open="false">
+    <aside class="settings" id="settings-drawer" aria-label="Settings" data-open="false">
       <div class="settings-header">
         <div class="settings-heading">
           <h2 class="control-label">Settings</h2>
@@ -174,36 +184,37 @@
         </button>
       </div>
       <div class="settings-body">
-        <div class="settings-panel" id="settings-fair" hidden>
-          <p class="settings-empty">Normal mode has no settings.</p>
-        </div>
-        <div class="settings-panel" id="settings-weighted">
-          <div class="control-block">
-            <div class="settings-slider-head">
-              <label class="control-label" for="weighted-drop-slider">Drop strength</label>
-              <span class="settings-slider-value" id="weighted-drop-value">20%</span>
-            </div>
-            <input type="range" id="weighted-drop-slider" min="0" max="100" step="1" value="20" aria-valuemin="0"
-              aria-valuemax="100" aria-valuenow="20" aria-valuetext="20 percent" />
-            <p class="settings-hint">
-              How much the rolled face's chance drops after each roll (share of that face's base chance).
-            </p>
+        <div class="control-block">
+          <div class="settings-row">
+            <label class="control-label" id="theme-label" for="theme-toggle">Light theme</label>
+            <button type="button" id="theme-toggle" class="tactile-toggle" role="switch" aria-checked="false"
+              aria-labelledby="theme-label"></button>
           </div>
         </div>
-        <div class="settings-panel" id="settings-average" hidden>
-          <div class="control-block">
-            <label class="control-label" for="average-curve-rolls">Curve rolls</label>
-            <div class="stepper">
-              <button type="button" id="average-curve-rolls-dec" class="stepper-btn"
-                aria-label="Decrease curve rolls">−</button>
-              <input type="number" id="average-curve-rolls" min="2" max="20" value="2" />
-              <button type="button" id="average-curve-rolls-inc" class="stepper-btn"
-                aria-label="Increase curve rolls">+</button>
-            </div>
-            <p class="settings-hint">
-              Each result is the mean of this many fair rolls. Higher values tighten the bell toward the middle.
-            </p>
+        <div class="control-block">
+          <div class="settings-slider-head">
+            <label class="control-label" for="weighted-drop-slider">Drop strength</label>
+            <span class="settings-slider-value" id="weighted-drop-value">20%</span>
           </div>
+          <input type="range" id="weighted-drop-slider" min="0" max="100" step="1" value="20" aria-valuemin="0"
+            aria-valuemax="100" aria-valuenow="20" aria-valuetext="20 percent" />
+          <p class="settings-hint">
+            Weighted mode: how much the rolled face's chance drops after each roll (share of that face's base chance).
+          </p>
+        </div>
+        <div class="control-block">
+          <label class="control-label" for="average-curve-rolls">Curve rolls</label>
+          <div class="stepper">
+            <button type="button" id="average-curve-rolls-dec" class="stepper-btn"
+              aria-label="Decrease curve rolls">−</button>
+            <input type="number" id="average-curve-rolls" min="2" max="20" value="2" />
+            <button type="button" id="average-curve-rolls-inc" class="stepper-btn"
+              aria-label="Increase curve rolls">+</button>
+          </div>
+          <p class="settings-hint">
+            Average mode: each result is the mean of this many fair rolls. Higher values tighten the bell toward the
+            middle.
+          </p>
         </div>
       </div>
     </aside>
