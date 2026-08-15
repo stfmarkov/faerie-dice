@@ -49,9 +49,12 @@
 body {
   margin: 0;
   width: 100dvw;
+  min-height: 100dvh;
   background: #0a0a0a;
   color: var(--on-surface);
   overflow-x: clip;
+  display: flex;
+  flex-direction: column;
 }
 
 button,
@@ -423,6 +426,7 @@ input[type="number"]:focus {
 .listbox-options {
   position: absolute;
   top: calc(100% + 4px);
+  bottom: auto;
   left: 0;
   right: 0;
   z-index: 40;
@@ -432,6 +436,11 @@ input[type="number"]:focus {
   border: 1px solid var(--outline-variant);
   border-radius: var(--radius-lg);
   background: var(--surface-container-high);
+}
+
+.listbox-options--drop-up {
+  top: auto;
+  bottom: calc(100% + 4px);
 }
 
 .listbox-options[hidden] {
@@ -963,7 +972,6 @@ input[type="range"]::-moz-range-thumb {
 
   #app {
     order: 1;
-    flex-direction: column-reverse;
   }
 
   .dice-tray {
@@ -1002,7 +1010,7 @@ input[type="range"]::-moz-range-thumb {
   .stage {
     min-height: 0;
     flex: 1;
-    padding: var(--space-lg) var(--space-md);
+    padding: var(--space-md);
     border-bottom: none;
     border-top: 1px solid var(--outline-variant);
   }
@@ -1040,6 +1048,13 @@ input[type="range"]::-moz-range-thumb {
     min-height: 3rem;
     font-size: 24px;
     line-height: 32px;
+  }
+}
+
+@media (max-width: 400px) {
+  .result-die {
+    width: min(42vh, 14rem);
+    height: min(42vh, 14rem);
   }
 }
 

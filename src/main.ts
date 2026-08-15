@@ -263,11 +263,30 @@ import './style.css'
 
     const getValue = () => getSelectedOption()?.dataset.value ?? '';
 
+    const LIST_GAP = 4;
+
+    const placeOptions = () => {
+      list.classList.remove('listbox-options--drop-up');
+      const triggerRect = trigger.getBoundingClientRect();
+      const listHeight = list.getBoundingClientRect().height;
+      const clipRoot = root.closest('.shell');
+      const clipRect = clipRoot?.getBoundingClientRect();
+      const clipTop = clipRect?.top ?? 0;
+      const clipBottom = clipRect?.bottom ?? window.innerHeight;
+      const spaceBelow = clipBottom - triggerRect.bottom - LIST_GAP;
+      const spaceAbove = triggerRect.top - clipTop - LIST_GAP;
+      const openUp = spaceBelow < listHeight && spaceAbove > spaceBelow;
+      list.classList.toggle('listbox-options--drop-up', openUp);
+    };
+
     const setOpen = (open: boolean) => {
       trigger.setAttribute('aria-expanded', String(open));
       list.hidden = !open;
       if (open) {
+        placeOptions();
         getSelectedOption()?.focus();
+      } else {
+        list.classList.remove('listbox-options--drop-up');
       }
     };
 
@@ -340,6 +359,12 @@ import './style.css'
         return;
       }
       setOpen(false);
+    });
+
+    window.addEventListener('resize', () => {
+      if (!list.hidden) {
+        placeOptions();
+      }
     });
 
     return {
