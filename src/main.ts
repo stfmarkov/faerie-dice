@@ -260,25 +260,42 @@ import './style.css'
     }
   };
 
+  let historyRequest: AbortController | null = null;
+
   const closeHistoryModal = () => {
+    historyRequest?.abort();
+    historyRequest = null;
     historyRoot.innerHTML = '';
   };
 
   const refreshHistoryModal = async () => {
+    historyRequest?.abort();
+    const request = new AbortController();
+    historyRequest = request;
     try {
       const body = new URLSearchParams({ history: JSON.stringify(rollHistory) });
       const response = await fetch('/history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body,
+        signal: request.signal,
       });
+      if (historyRequest !== request) {
+        return;
+      }
       if (!response.ok) {
         closeHistoryModal();
         return;
       }
-      historyRoot.innerHTML = await response.text();
+      const html = await response.text();
+      if (historyRequest !== request) {
+        return;
+      }
+      historyRoot.innerHTML = html;
     } catch {
-      closeHistoryModal();
+      if (historyRequest === request) {
+        closeHistoryModal();
+      }
     }
   };
 
@@ -615,22 +632,27 @@ import './style.css'
       return [];
     }
 
-    const knownDice = new Set(diceTypes.map(die => die.name));
     const entries: HistoryRoll[] = [];
     for (const item of raw) {
       if (!item || typeof item !== 'object') {
         continue;
       }
       const record = item as { die?: unknown; value?: unknown; detail?: unknown };
-      if (typeof record.die !== 'string' || !knownDice.has(record.die)) {
+      if (typeof record.die !== 'string') {
+        continue;
+      }
+      const die = diceTypes.find(candidate => candidate.name === record.die);
+      if (!die) {
         continue;
       }
       const value = typeof record.value === 'number' ? record.value : Number(record.value);
       if (!Number.isFinite(value)) {
         continue;
       }
-      const entry: HistoryRoll = { die: record.die, value: Math.round(value) };
-      if (typeof record.detail === 'string' && record.detail.length > 0) {
+      if (!Number.isInteger(value) || value < 1 || value > die.sides * 100) {
+        continue;
+      }
+      const entry: HistoryRoll = { die: record.die, value };      if (typeof record.detail === 'string' && record.detail.length > 0) {
         entry.detail = record.detail;
       }
       entries.push(entry);
@@ -688,6 +710,10 @@ import './style.css'
       }
 
       const parsed = JSON.parse(raw) as Partial<PersistedState>;
+      if (!parsed || typeof parsed !== 'object' || parsed.version !== STATE_VERSION) {
+        return;
+      }
+
       rollHistory.length = 0;
       rollHistory.push(...parseStoredHistory(parsed.history));
 

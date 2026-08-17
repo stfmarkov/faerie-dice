@@ -18,6 +18,78 @@ import {
   setNumberOfRolls,
 } from './helpers';
 
+const defaultPersistedSettings = {
+  selectedDie: 'd20',
+  pickMode: 'weighted',
+  resultMode: null,
+  rollCount: 1,
+  dicePerRoll: 2,
+  weightedDropPercent: 20,
+  averageCurveRolls: 2,
+};
+
+test('unsupported persisted version is ignored without restoring state', async ({ page }) => {
+  await page.goto('/');
+
+  await page.evaluate((settings) => {
+    localStorage.setItem('faerie-dice-state', JSON.stringify({
+      version: 2,
+      history: [{ die: 'd6', value: 3 }],
+      weights: { d20: [{ value: 20, modifierValue: 0 }] },
+      settings: { ...settings, selectedDie: 'd6', pickMode: 'fair', rollCount: 4 },
+    }));
+  }, defaultPersistedSettings);
+
+  await page.reload();
+
+  await expect(page.locator('#die-select button[data-die-name="d20"]')).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.locator('#mode-trigger')).toHaveText('Weighted');
+  await expect(page.locator('#number-of-rolls')).toHaveValue('1');
+  expect(await readRollHistory(page)).toHaveLength(0);
+});
+
+test('malformed persisted payload is ignored without restoring state', async ({ page }) => {
+  await page.goto('/');
+
+  await page.evaluate(() => {
+    localStorage.setItem('faerie-dice-state', JSON.stringify(['not-an-object']));
+  });
+
+  await page.reload();
+
+  await expect(page.locator('#die-select button[data-die-name="d20"]')).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  expect(await readRollHistory(page)).toHaveLength(0);
+});
+
+test('history entries outside the supported range are dropped', async ({ page }) => {
+  await page.goto('/');
+
+  await page.evaluate((settings) => {
+    localStorage.setItem('faerie-dice-state', JSON.stringify({
+      version: 1,
+      history: [
+        { die: 'd6', value: 0 },
+        { die: 'd6', value: 3.4 },
+        { die: 'd6', value: 601 },
+        { die: 'd20', value: 20 },
+      ],
+      weights: {},
+      settings,
+    }));
+  }, defaultPersistedSettings);
+
+  await page.reload();
+
+  expect(await readRollHistory(page)).toEqual([
+    { die: 'd20', value: 20 },
+  ]);});
+
 test('reload restores history, weights, and settings', async ({ page }) => {
   await page.goto('/');
 
