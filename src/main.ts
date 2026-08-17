@@ -210,6 +210,9 @@ import './style.css'
   let lastReportedValues: number[] = [];
   let pickMode: PickMode = 'weighted';
   let resultMode: ResultMode | null = null;
+  const HISTORY_CAP = 100;
+  const STATE_KEY = 'faerie-dice-state';
+  const STATE_VERSION = 1;
   const rollHistory: HistoryRoll[] = [];
   (window as Window & { __rollHistory?: HistoryRoll[] }).__rollHistory = rollHistory;
 
@@ -239,6 +242,7 @@ import './style.css'
   const settingsEl = document.querySelector<HTMLElement>('#settings-drawer')!;
   const settingsToggleBtn = document.querySelector<HTMLButtonElement>('#settings-toggle')!;
   const settingsCloseBtn = document.querySelector<HTMLButtonElement>('#settings-close')!;
+  const settingsDefaultBtn = document.querySelector<HTMLButtonElement>('#settings-default')!;
   const themeToggleBtn = document.querySelector<HTMLButtonElement>('#theme-toggle')!;
   const averageCurveRollsInput = document.querySelector<HTMLInputElement>('#average-curve-rolls')!;
   const averageCurveRollsDecBtn = document.querySelector<HTMLButtonElement>('#average-curve-rolls-dec')!;
@@ -251,10 +255,48 @@ import './style.css'
     for (const entry of entries) {
       rollHistory.push(entry);
     }
+    if (rollHistory.length > HISTORY_CAP) {
+      rollHistory.splice(0, rollHistory.length - HISTORY_CAP);
+    }
   };
 
+  let historyRequest: AbortController | null = null;
+
   const closeHistoryModal = () => {
+    historyRequest?.abort();
+    historyRequest = null;
     historyRoot.innerHTML = '';
+  };
+
+  const refreshHistoryModal = async () => {
+    historyRequest?.abort();
+    const request = new AbortController();
+    historyRequest = request;
+    try {
+      const body = new URLSearchParams({ history: JSON.stringify(rollHistory) });
+      const response = await fetch('/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+        signal: request.signal,
+      });
+      if (historyRequest !== request) {
+        return;
+      }
+      if (!response.ok) {
+        closeHistoryModal();
+        return;
+      }
+      const html = await response.text();
+      if (historyRequest !== request) {
+        return;
+      }
+      historyRoot.innerHTML = html;
+    } catch {
+      if (historyRequest === request) {
+        closeHistoryModal();
+      }
+    }
   };
 
   type ListboxApi = {
@@ -450,6 +492,7 @@ import './style.css'
       renderWeights();
       renderAggregatedDistribution();
     }
+    persistState();
   };
 
   const dieIconPaths: Record<string, string> = {
@@ -500,6 +543,197 @@ import './style.css'
     dicePerRollBlock.hidden = !usesDicePerRoll();
     if (usesDicePerRoll()) {
       setDicePerRoll(getDicePerRoll());
+    }
+  };
+
+  type PersistedSettings = {
+    selectedDie: string;
+    pickMode: PickMode;
+    resultMode: ResultMode | null;
+    rollCount: number;
+    dicePerRoll: number;
+    weightedDropPercent: number;
+    averageCurveRolls: number;
+  };
+
+  type PersistedState = {
+    version: number;
+    history: HistoryRoll[];
+    weights: Record<string, Modifier[]>;
+    settings: PersistedSettings;
+  };
+
+  const defaultSettings = (): PersistedSettings => ({
+    selectedDie: diceTypes[5].name,
+    pickMode: 'weighted',
+    resultMode: null,
+    rollCount: 1,
+    dicePerRoll: 2,
+    weightedDropPercent: 20,
+    averageCurveRolls: 2,
+  });
+
+  const persistState = () => {
+    const weights: Record<string, Modifier[]> = {};
+    for (const die of diceTypes) {
+      if (die.modifiers.length > 0) {
+        weights[die.name] = cloneModifiers(die.modifiers);
+      }
+    }
+
+    const payload: PersistedState = {
+      version: STATE_VERSION,
+      history: rollHistory.slice(-HISTORY_CAP),
+      weights,
+      settings: {
+        selectedDie: selectedDice.name,
+        pickMode,
+        resultMode,
+        rollCount: getRollCount(),
+        dicePerRoll: getDicePerRoll(),
+        weightedDropPercent,
+        averageCurveRolls,
+      },
+    };
+
+    try {
+      localStorage.setItem(STATE_KEY, JSON.stringify(payload));
+    } catch {
+      // Private mode or blocked storage — in-session state still works.
+    }
+  };
+
+  const parseStoredModifiers = (raw: unknown, sides: number): Modifier[] => {
+    if (!Array.isArray(raw)) {
+      return [];
+    }
+
+    const byValue = new Map<number, Modifier>();
+    for (const item of raw) {
+      if (!item || typeof item !== 'object') {
+        continue;
+      }
+      const record = item as { value?: unknown; modifierValue?: unknown };
+      const value = typeof record.value === 'number' ? record.value : Number(record.value);
+      const modifierValue = typeof record.modifierValue === 'number'
+        ? record.modifierValue
+        : Number(record.modifierValue);
+      if (!Number.isInteger(value) || value < 1 || value > sides || !Number.isFinite(modifierValue)) {
+        continue;
+      }
+      byValue.set(value, { value, modifierValue: Math.max(0, modifierValue) });
+    }
+
+    return Array.from(byValue.values());
+  };
+
+  const parseStoredHistory = (raw: unknown): HistoryRoll[] => {
+    if (!Array.isArray(raw)) {
+      return [];
+    }
+
+    const entries: HistoryRoll[] = [];
+    for (const item of raw) {
+      if (!item || typeof item !== 'object') {
+        continue;
+      }
+      const record = item as { die?: unknown; value?: unknown; detail?: unknown };
+      if (typeof record.die !== 'string') {
+        continue;
+      }
+      const die = diceTypes.find(candidate => candidate.name === record.die);
+      if (!die) {
+        continue;
+      }
+      const value = typeof record.value === 'number' ? record.value : Number(record.value);
+      if (!Number.isFinite(value)) {
+        continue;
+      }
+      if (!Number.isInteger(value) || value < 1 || value > die.sides * 100) {
+        continue;
+      }
+      const entry: HistoryRoll = { die: record.die, value };      if (typeof record.detail === 'string' && record.detail.length > 0) {
+        entry.detail = record.detail;
+      }
+      entries.push(entry);
+    }
+
+    return entries.slice(-HISTORY_CAP);
+  };
+
+  const parseStoredSettings = (raw: unknown): PersistedSettings => {
+    const defaults = defaultSettings();
+    if (!raw || typeof raw !== 'object') {
+      return defaults;
+    }
+
+    const record = raw as Partial<PersistedSettings>;
+    const selectedDie = typeof record.selectedDie === 'string'
+      && diceTypes.some(die => die.name === record.selectedDie)
+      ? record.selectedDie
+      : defaults.selectedDie;
+    const nextPick = record.pickMode === 'fair' || record.pickMode === 'weighted' || record.pickMode === 'average'
+      ? record.pickMode
+      : defaults.pickMode;
+    const nextResult = record.resultMode === 'advantage'
+      || record.resultMode === 'disadvantage'
+      || record.resultMode === 'sum'
+      ? record.resultMode
+      : record.resultMode === null
+        ? null
+        : defaults.resultMode;
+
+    const clamp = (value: unknown, min: number, max: number, fallback: number) => {
+      const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
+      if (!Number.isFinite(parsed)) {
+        return fallback;
+      }
+      return Math.min(max, Math.max(min, Math.round(parsed)));
+    };
+
+    return {
+      selectedDie,
+      pickMode: nextPick,
+      resultMode: nextResult,
+      rollCount: clamp(record.rollCount, 1, 100, defaults.rollCount),
+      dicePerRoll: clamp(record.dicePerRoll, 2, 100, defaults.dicePerRoll),
+      weightedDropPercent: clamp(record.weightedDropPercent, 0, 100, defaults.weightedDropPercent),
+      averageCurveRolls: clamp(record.averageCurveRolls, 2, 20, defaults.averageCurveRolls),
+    };
+  };
+
+  const loadPersistedState = () => {
+    try {
+      const raw = localStorage.getItem(STATE_KEY);
+      if (!raw) {
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as Partial<PersistedState>;
+      if (!parsed || typeof parsed !== 'object' || parsed.version !== STATE_VERSION) {
+        return;
+      }
+
+      rollHistory.length = 0;
+      rollHistory.push(...parseStoredHistory(parsed.history));
+
+      const weights = parsed.weights && typeof parsed.weights === 'object'
+        ? parsed.weights as Record<string, unknown>
+        : {};
+      for (const die of diceTypes) {
+        die.modifiers = parseStoredModifiers(weights[die.name], die.sides);
+      }
+
+      const settings = parseStoredSettings(parsed.settings);
+      selectedDice = diceTypes.find(die => die.name === settings.selectedDie) ?? selectedDice;
+      pickMode = settings.pickMode;
+      resultMode = settings.resultMode;
+      weightedDropPercent = settings.weightedDropPercent;
+      setRollCount(settings.rollCount);
+      setDicePerRoll(settings.dicePerRoll);
+      setAverageCurveRolls(settings.averageCurveRolls);
+    } catch {
+      // Ignore corrupt or blocked storage; keep in-memory defaults.
     }
   };
 
@@ -864,6 +1098,7 @@ import './style.css'
     renderProbabilityConfig();
     renderWeights();
     renderAggregatedDistribution();
+    persistState();
   };
 
   dieSelect.addEventListener('click', (event) => {
@@ -896,19 +1131,18 @@ import './style.css'
         resultValueEl.textContent || '—',
         'Weighted picking on — rolls use and update face chances.',
       );
-      return;
-    }
-    if (next === 'average') {
+    } else if (next === 'average') {
       setResultDisplay(
         resultValueEl.textContent || '—',
         `Average curve on — each result is the mean of ${averageCurveRolls} fair rolls (extremes rare, middle common).`,
       );
-      return;
+    } else {
+      setResultDisplay(
+        resultValueEl.textContent || '—',
+        'Normal picking — fair rolls, weights stay frozen.',
+      );
     }
-    setResultDisplay(
-      resultValueEl.textContent || '—',
-      'Normal picking — fair rolls, weights stay frozen.',
-    );
+    persistState();
   };
 
   const modeListbox = createListbox(
@@ -927,6 +1161,7 @@ import './style.css'
       renderResultModeControls();
       renderProbabilityConfig();
       renderAggregatedDistribution();
+      persistState();
     },
   );
 
@@ -934,36 +1169,42 @@ import './style.css'
     setRollCount(getRollCount() - 1);
     renderProbabilityConfig();
     renderAggregatedDistribution();
+    persistState();
   });
 
   rollsIncBtn.addEventListener('click', () => {
     setRollCount(getRollCount() + 1);
     renderProbabilityConfig();
     renderAggregatedDistribution();
+    persistState();
   });
 
   rollsInput.addEventListener('change', () => {
     setRollCount(getRollCount());
     renderProbabilityConfig();
     renderAggregatedDistribution();
+    persistState();
   });
 
   dicePerRollDecBtn.addEventListener('click', () => {
     setDicePerRoll(getDicePerRoll() - 1);
     renderProbabilityConfig();
     renderAggregatedDistribution();
+    persistState();
   });
 
   dicePerRollIncBtn.addEventListener('click', () => {
     setDicePerRoll(getDicePerRoll() + 1);
     renderProbabilityConfig();
     renderAggregatedDistribution();
+    persistState();
   });
 
   dicePerRollInput.addEventListener('change', () => {
     setDicePerRoll(getDicePerRoll());
     renderProbabilityConfig();
     renderAggregatedDistribution();
+    persistState();
   });
 
   const performRoll = () => {
@@ -1010,6 +1251,7 @@ import './style.css'
       value: group.value,
       detail: historyDetailFor(group, resultMode),
     })));
+    persistState();
     setResultDisplay(value, meta);
     renderProbabilityConfig();
     renderWeights();
@@ -1026,6 +1268,7 @@ import './style.css'
     setResultDisplay('—', `${selectedDice.name} reset to fair odds.`);
     renderWeights();
     renderAggregatedDistribution();
+    persistState();
   });
 
   probabilityToggleBtn.addEventListener('click', () => {
@@ -1058,6 +1301,30 @@ import './style.css'
     setSettingsOpen(false);
   });
 
+  settingsDefaultBtn.addEventListener('click', () => {
+    const settings = defaultSettings();
+    selectedDice = diceTypes.find(die => die.name === settings.selectedDie) ?? selectedDice;
+    pickMode = settings.pickMode;
+    resultMode = settings.resultMode;
+    weightedDropPercent = settings.weightedDropPercent;
+    lastRolls = [];
+    lastReportedValues = [];
+    setRollCount(settings.rollCount);
+    setDicePerRoll(settings.dicePerRoll);
+    setAverageCurveRolls(settings.averageCurveRolls);
+    applyTheme('dark');
+    renderStageDie();
+    renderDieSelect();
+    renderModeControls();
+    renderResultModeControls();
+    renderWeightedDropControl();
+    renderProbabilityConfig();
+    renderWeights();
+    renderAggregatedDistribution();
+    setResultDisplay('—', 'Settings restored to defaults.');
+    persistState();
+  });
+
   themeToggleBtn.addEventListener('click', () => {
     const next: Theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
     applyTheme(next);
@@ -1069,6 +1336,7 @@ import './style.css'
       ? Math.min(100, Math.max(0, next))
       : 20;
     renderWeightedDropControl();
+    persistState();
   });
 
   averageCurveRollsDecBtn.addEventListener('click', () => {
@@ -1104,6 +1372,12 @@ import './style.css'
     if (!(target instanceof Element)) {
       return;
     }
+    if (target.closest('[data-history-clear]')) {
+      rollHistory.length = 0;
+      persistState();
+      void refreshHistoryModal();
+      return;
+    }
     if (target.closest('[data-history-close]')) {
       closeHistoryModal();
     }
@@ -1131,6 +1405,7 @@ import './style.css'
 
   const main = () => {
     applyTheme(readStoredTheme());
+    loadPersistedState();
     renderStageDie();
     renderDieSelect();
     renderModeControls();
@@ -1139,6 +1414,7 @@ import './style.css'
     setAverageCurveRolls(averageCurveRolls);
     renderProbabilityConfig();
     renderWeights();
+    renderAggregatedDistribution();
   };
 
   main();
