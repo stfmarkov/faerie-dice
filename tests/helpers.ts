@@ -116,6 +116,43 @@ export async function closeHistory(page: Page) {
   await expect(history).toHaveCount(0);
 }
 
+export async function openSettings(page: Page) {
+  const drawer = page.getByRole('complementary', { name: 'Settings' });
+  if ((await drawer.getAttribute('data-open')) !== 'true') {
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  }
+  await expect(drawer).toHaveAttribute('data-open', 'true');
+}
+
+export async function selectDie(page: Page, name: string) {
+  await page.getByRole('button', { name, exact: true }).click();
+  await expect(page.locator(`#die-select button[data-die-name="${name}"]`)).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+}
+
+export async function setDropStrength(page: Page, percent: number) {
+  await page.locator('#weighted-drop-slider').fill(String(percent));
+  await expect(page.locator('#weighted-drop-value')).toHaveText(`${percent}%`);
+}
+
+export async function setCurveRolls(page: Page, count: number) {
+  const input = page.locator('#average-curve-rolls');
+  let current = Number(await input.inputValue());
+
+  while (current < count) {
+    await page.getByRole('button', { name: 'Increase curve rolls' }).click();
+    current = Number(await input.inputValue());
+  }
+  while (current > count) {
+    await page.getByRole('button', { name: 'Decrease curve rolls' }).click();
+    current = Number(await input.inputValue());
+  }
+
+  await expect(input).toHaveValue(String(count));
+}
+
 /** Count entries in the History "All dice" sequence (`d20:3, d20:7, …`). */
 export async function historyEntryCount(page: Page): Promise<number> {
   const sequence = page
