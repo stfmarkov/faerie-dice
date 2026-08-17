@@ -152,14 +152,17 @@ import './style.css'
 
   type PickMode = 'fair' | 'weighted' | 'average';
 
+  const diceModes: Record<PickMode, (diceType: DiceType) => number> = {
+    fair: rollFair,
+    weighted: rollWeighted,
+    average: rollAverage,
+  };
+
   const rollDice = (diceType: DiceType, mode: PickMode) => {
-    if (mode === 'weighted') {
-      return rollWeighted(diceType);
+    if (!diceModes[mode]) {
+      return rollFair(diceType);
     }
-    if (mode === 'average') {
-      return rollAverage(diceType);
-    }
-    return rollFair(diceType);
+    return diceModes[mode](diceType);
   }
 
   const getFaceChances = (diceType: DiceType) => {
@@ -170,13 +173,10 @@ import './style.css'
   }
 
   const pickModeLabel = (mode: PickMode) => {
-    if (mode === 'weighted') {
-      return 'weighted';
+    if (!diceModes[mode]) {
+      return 'fair';
     }
-    if (mode === 'average') {
-      return 'average';
-    }
-    return 'fair';
+    return mode;
   }
 
   const formatChance = (chance: number) => `${chance.toFixed(3)}%`;
@@ -223,7 +223,6 @@ import './style.css'
   const settingsEl = document.querySelector<HTMLElement>('#settings-drawer')!;
   const settingsToggleBtn = document.querySelector<HTMLButtonElement>('#settings-toggle')!;
   const settingsCloseBtn = document.querySelector<HTMLButtonElement>('#settings-close')!;
-  const settingsModeLabelEl = document.querySelector<HTMLElement>('#settings-mode-label')!;
   const themeToggleBtn = document.querySelector<HTMLButtonElement>('#theme-toggle')!;
   const averageCurveRollsInput = document.querySelector<HTMLInputElement>('#average-curve-rolls')!;
   const averageCurveRollsDecBtn = document.querySelector<HTMLButtonElement>('#average-curve-rolls-dec')!;
@@ -372,7 +371,7 @@ import './style.css'
     };
   };
 
-  const isOverlayDrawer = () => window.matchMedia('(max-width: 1599px)').matches;
+  const isOverlayDrawer = () => window.matchMedia('(max-width: 1399px)').matches;
 
   const setProbabilityOpen = (open: boolean) => {
     probabilityEl.dataset.open = String(open);
@@ -407,16 +406,6 @@ import './style.css'
     } catch {
       // Ignore persistence failures; the in-session theme still applies.
     }
-  };
-
-  const pickModeTitle: Record<PickMode, string> = {
-    fair: 'Normal',
-    weighted: 'Weighted',
-    average: 'Average',
-  };
-
-  const renderSettingsMode = () => {
-    settingsModeLabelEl.textContent = pickModeTitle[pickMode];
   };
 
   const renderWeightedDropControl = () => {
@@ -882,7 +871,6 @@ import './style.css'
   const setPickMode = (next: PickMode) => {
     pickMode = next;
     renderModeControls();
-    renderSettingsMode();
     renderWeights();
     renderAggregatedDistribution();
 
@@ -1120,7 +1108,6 @@ import './style.css'
     renderDieSelect();
     renderModeControls();
     renderResultModeControls();
-    renderSettingsMode();
     renderWeightedDropControl();
     setAverageCurveRolls(averageCurveRolls);
     renderProbabilityConfig();
