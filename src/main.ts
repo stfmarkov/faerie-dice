@@ -122,21 +122,37 @@ import './style.css'
     return Math.floor(Math.random() * diceType.sides) + 1;
   }
 
+  const cloneModifiers = (modifiers: Modifier[]) =>
+    modifiers.map(modifier => ({
+      value: modifier.value,
+      modifierValue: modifier.modifierValue,
+    }));
+
+  const snapshotModifiers = (diceType: DiceType) => cloneModifiers(diceType.modifiers);
+
+  const restoreModifiers = (diceType: DiceType, snapshot: Modifier[]) => {
+    diceType.modifiers = cloneModifiers(snapshot);
+  };
+
   // Weighted pick along the 0–100% chance line, then update modifiers.
-  const rollWeighted = (diceType: DiceType) => {
+  const pickWeighted = (diceType: DiceType) => {
     let roll = Math.random() * 100;
 
     for (let value = 1; value <= diceType.sides; value++) {
       roll -= getFaceChance(diceType, value);
       if (roll < 0) {
-        modifyValues(diceType, value);
         return value;
       }
     }
 
     // Floating-point safety if chances don't sum to exactly 100
-    modifyValues(diceType, diceType.sides);
     return diceType.sides;
+  }
+
+  const rollWeighted = (diceType: DiceType) => {
+    const value = pickWeighted(diceType);
+    modifyValues(diceType, value);
+    return value;
   }
 
   // Average of N fair rolls (default 2) → bell curve; middle common, extremes rare.
@@ -735,8 +751,9 @@ import './style.css'
 
   // Face probabilities as fractions (sum to 1) for the active pick mode.
   // Weighted uses live Faerie weights (i.i.d. snapshot of current odds).
-  // Multi-die weighted rolls still update between dice; the graph freezes
-  // tonight's face chances to answer “what do reported results look like now?”
+  // Multi-die weighted rolls still update memory between dice while picking;
+  // advantage / disadvantage then keep the chance drop only on the used face.
+  // The graph freezes tonight's chances to answer “what do reported results look like now?”
   const getPickFaceProbabilities = () => {
     const sides = selectedDice.sides;
     let raw: number[];
@@ -958,14 +975,24 @@ import './style.css'
     if (resultMode) {
       const dicePerRoll = getDicePerRoll();
       setDicePerRoll(dicePerRoll);
+      const dropKeptFaceOnly =
+        pickMode === 'weighted' &&
+        (resultMode === 'advantage' || resultMode === 'disadvantage');
       for (let rollIndex = 0; rollIndex < rollCount; rollIndex++) {
-        const faces = Array.from({ length: dicePerRoll }, () => rollDice(selectedDice, pickMode));
+        const beforePool = dropKeptFaceOnly ? snapshotModifiers(selectedDice) : null;
+        const faces = Array.from({ length: dicePerRoll }, () =>
+          rollDice(selectedDice, pickMode),
+        );
         const value =
           resultMode === 'advantage'
             ? Math.max(...faces)
             : resultMode === 'disadvantage'
               ? Math.min(...faces)
               : totalRolls(faces);
+        if (beforePool !== null) {
+          restoreModifiers(selectedDice, beforePool);
+          modifyValues(selectedDice, value);
+        }
         groups.push({ faces, value });
       }
     } else {
