@@ -211,7 +211,8 @@ import './style.css'
   let pickMode: PickMode = 'weighted';
   let resultMode: ResultMode | null = null;
   const HISTORY_CAP = 100;
-  const STATE_KEY = 'faerie-dice-state';
+  const STATE_KEY = 'fair-ish-dice-state';
+  const LEGACY_STATE_KEY = 'faerie-dice-state';
   const STATE_VERSION = 1;
   const rollHistory: HistoryRoll[] = [];
   (window as Window & { __rollHistory?: HistoryRoll[] }).__rollHistory = rollHistory;
@@ -442,11 +443,12 @@ import './style.css'
   };
 
   type Theme = 'light' | 'dark';
-  const THEME_KEY = 'faerie-dice-theme';
+  const THEME_KEY = 'fair-ish-dice-theme';
+  const LEGACY_THEME_KEY = 'faerie-dice-theme';
 
   const readStoredTheme = (): Theme => {
     try {
-      const stored = localStorage.getItem(THEME_KEY);
+      const stored = localStorage.getItem(THEME_KEY) ?? localStorage.getItem(LEGACY_THEME_KEY);
       if (stored === 'light' || stored === 'dark') {
         return stored;
       }
@@ -704,7 +706,7 @@ import './style.css'
 
   const loadPersistedState = () => {
     try {
-      const raw = localStorage.getItem(STATE_KEY);
+      const raw = localStorage.getItem(STATE_KEY) ?? localStorage.getItem(LEGACY_STATE_KEY);
       if (!raw) {
         return;
       }
@@ -984,7 +986,7 @@ import './style.css'
   };
 
   // Face probabilities as fractions (sum to 1) for the active pick mode.
-  // Weighted uses live Faerie weights (i.i.d. snapshot of current odds).
+  // Weighted uses live weights (i.i.d. snapshot of current odds).
   // Multi-die weighted rolls still update memory between dice while picking;
   // advantage / disadvantage then keep the chance drop only on the used face.
   // The graph freezes tonight's chances to answer “what do reported results look like now?”

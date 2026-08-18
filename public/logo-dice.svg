@@ -4,17 +4,9 @@
 <svg version="1.0" xmlns="http://www.w3.org/2000/svg"
  width="500.000000pt" height="500.000000pt" viewBox="0 0 500.000000 500.000000"
  preserveAspectRatio="xMidYMid meet">
-<style>
-  .bg { fill: #0a0a0a; }
-  .mark { fill: #adc6ff; }
-  @media (prefers-color-scheme: light) {
-    .bg { fill: #f7f9fb; }
-    .mark { fill: #0058bc; }
-  }
-</style>
-<rect class="bg" width="500" height="500"/>
-<g class="mark" transform="translate(0.000000,500.000000) scale(0.100000,-0.100000)"
-stroke="none">
+
+<g transform="translate(0.000000,500.000000) scale(0.100000,-0.100000)"
+fill="#000000" stroke="none">
 <path d="M2214 4729 c-109 -61 -237 -134 -284 -162 -47 -28 -98 -59 -115 -68
 -59 -32 -318 -179 -408 -232 -51 -30 -114 -67 -142 -82 -145 -80 -232 -136
 -251 -161 -51 -70 -49 -46 -54 -609 l-5 -530 -110 -67 c-60 -38 -126 -76 -145

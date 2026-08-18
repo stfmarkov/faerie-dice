@@ -118,13 +118,28 @@ button {
 }
 
 .brand {
-  font-family: var(--font-display);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+  font-family: var(--font-mono);
   font-size: 32px;
   font-weight: 600;
   line-height: 40px;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.2rem;
   text-transform: uppercase;
   color: var(--primary);
+}
+
+.brand-logo {
+  display: block;
+  height: 2.5rem;
+  width: auto;
+  flex-shrink: 0;
+}
+
+.brand-name {
+  white-space: nowrap;
 }
 
 .shell {
@@ -1033,9 +1048,12 @@ input[type="range"]::-moz-range-thumb {
 }
 
 @media (max-width: 767px) {
-  .brand {
-    font-size: 1.5rem;
-    line-height: 1.2;
+  .brand-name {
+    display: none;
+  }
+
+  .brand-logo {
+    height: 2rem;
   }
 
   .topbar-btn {

@@ -32,7 +32,7 @@ test('unsupported persisted version is ignored without restoring state', async (
   await page.goto('/');
 
   await page.evaluate((settings) => {
-    localStorage.setItem('faerie-dice-state', JSON.stringify({
+    localStorage.setItem('fair-ish-dice-state', JSON.stringify({
       version: 2,
       history: [{ die: 'd6', value: 3 }],
       weights: { d20: [{ value: 20, modifierValue: 0 }] },
@@ -55,7 +55,7 @@ test('malformed persisted payload is ignored without restoring state', async ({ 
   await page.goto('/');
 
   await page.evaluate(() => {
-    localStorage.setItem('faerie-dice-state', JSON.stringify(['not-an-object']));
+    localStorage.setItem('fair-ish-dice-state', JSON.stringify(['not-an-object']));
   });
 
   await page.reload();
@@ -71,7 +71,7 @@ test('history entries outside the supported range are dropped', async ({ page })
   await page.goto('/');
 
   await page.evaluate((settings) => {
-    localStorage.setItem('faerie-dice-state', JSON.stringify({
+    localStorage.setItem('fair-ish-dice-state', JSON.stringify({
       version: 1,
       history: [
         { die: 'd6', value: 0 },

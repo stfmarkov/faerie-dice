@@ -6,16 +6,16 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Faerie Dice is a tool for rolling dice with weighted probabilities.">
+  <meta name="description" content="fair(ish) dice is a tool for rolling dice with weighted probabilities.">
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400&family=JetBrains+Mono:wght@500;700&family=Space+Grotesk:wght@600;700&display=swap"
     rel="stylesheet" />
-  <title>Faerie Dice</title>
+  <title>fair(ish) dice</title>
   <script>
     try {
-      var theme = localStorage.getItem('faerie-dice-theme');
+      var theme = localStorage.getItem('fair-ish-dice-theme') || localStorage.getItem('faerie-dice-theme');
       if (theme === 'light' || theme === 'dark') {
         document.documentElement.setAttribute('data-theme', theme);
       }
@@ -29,7 +29,10 @@
 
 <body>
   <header class="topbar">
-    <div class="brand">Faerie Dice</div>
+    <div class="brand">
+      <img class="brand-logo" src="/logo-dice.avif" alt="fair(ish) dice" />
+      <span class="brand-name" aria-hidden="true">fair[ish] dice</span>
+    </div>
     <div class="topbar-actions">
       <button type="button" id="history-btn" class="topbar-btn" aria-label="History" hx-post="/history"
         hx-target="#history-root" hx-swap="innerHTML"

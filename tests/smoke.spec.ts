@@ -10,7 +10,8 @@ import {
 test('weighted roll lowers the face and boosts the opposite group', async ({ page }) => {
   await page.goto('/');
 
-  await expect(page.getByText('Faerie Dice')).toBeVisible();
+  await expect(page.getByRole('img', { name: 'fair(ish) dice' })).toBeVisible();
+  await expect(page.locator('.brand-name')).toBeVisible();
   await expect(page.locator('#result-value')).toHaveText('—');
   await expect(page.locator('#mode-trigger')).toHaveText('Weighted');
 
