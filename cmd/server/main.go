@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"html/template"
 	"log"
-	"mime"
 	"net/http"
 	"os"
 	"path"
@@ -46,12 +45,6 @@ type historyViewData struct {
 }
 
 func main() {
-	// Some hosts (and Windows) map .js to text/plain. FileServer then sniffs
-	// the file as text, and browsers refuse to execute it.
-	if err := mime.AddExtensionType(".js", "text/javascript; charset=utf-8"); err != nil {
-		log.Printf("mime .js: %v", err)
-	}
-
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8888"

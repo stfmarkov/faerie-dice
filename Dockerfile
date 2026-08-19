@@ -25,6 +25,7 @@ RUN apk add --no-cache ca-certificates
 COPY --from=backend /server ./server
 COPY --from=frontend /app/dist ./dist
 COPY templates ./templates
+COPY assets ./assets
 ENV PORT=8080
 EXPOSE 8080
 CMD ["./server"]
