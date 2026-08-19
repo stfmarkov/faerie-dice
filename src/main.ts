@@ -1,4 +1,3 @@
-import 'htmx.org'
 import './style.css'
 
 (() => {
@@ -216,7 +215,6 @@ import './style.css'
   const LEGACY_STATE_KEY = 'faerie-dice-state';
   const STATE_VERSION = 1;
   const rollHistory: HistoryRoll[] = [];
-  (window as Window & { __rollHistory?: HistoryRoll[] }).__rollHistory = rollHistory;
 
   const dieSelect = document.querySelector<HTMLUListElement>('#die-select')!;
   const rollsInput = document.querySelector<HTMLInputElement>('#number-of-rolls')!;
@@ -251,6 +249,7 @@ import './style.css'
   const averageCurveRollsIncBtn = document.querySelector<HTMLButtonElement>('#average-curve-rolls-inc')!;
   const weightedDropSlider = document.querySelector<HTMLInputElement>('#weighted-drop-slider')!;
   const weightedDropValueEl = document.querySelector<HTMLElement>('#weighted-drop-value')!;
+  const historyBtn = document.querySelector<HTMLButtonElement>('#history-btn')!;
   const historyRoot = document.querySelector<HTMLElement>('#history-root')!;
 
   const recordHistory = (entries: HistoryRoll[]) => {
@@ -262,44 +261,31 @@ import './style.css'
     }
   };
 
-  let historyRequest: AbortController | null = null;
-
   const closeHistoryModal = () => {
-    historyRequest?.abort();
-    historyRequest = null;
+    historyBtn.dispatchEvent(new CustomEvent('htmx:abort', {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      detail: { elt: historyBtn },
+    }));
     historyRoot.innerHTML = '';
   };
 
-  const refreshHistoryModal = async () => {
-    historyRequest?.abort();
-    const request = new AbortController();
-    historyRequest = request;
-    try {
-      const body = new URLSearchParams({ history: JSON.stringify(rollHistory) });
-      const response = await fetch('/history', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-        signal: request.signal,
-      });
-      if (historyRequest !== request) {
-        return;
-      }
-      if (!response.ok) {
-        closeHistoryModal();
-        return;
-      }
-      const html = await response.text();
-      if (historyRequest !== request) {
-        return;
-      }
-      historyRoot.innerHTML = html;
-    } catch {
-      if (historyRequest === request) {
-        closeHistoryModal();
-      }
-    }
+  type HtmxConfigRequestDetail = {
+    path: string;
+    parameters: { history?: string };
   };
+
+  historyBtn.addEventListener('htmx:configRequest', (event) => {
+    const detail = (event as CustomEvent<HtmxConfigRequestDetail>).detail;
+    if (detail.path !== '/history') {
+      return;
+    }
+    detail.parameters.history = JSON.stringify(rollHistory);
+  });
+
+  historyBtn.addEventListener('htmx:responseError', closeHistoryModal);
+  historyBtn.addEventListener('htmx:sendError', closeHistoryModal);
 
   type ListboxApi = {
     getValue: () => string;
@@ -1378,7 +1364,7 @@ import './style.css'
     if (target.closest('[data-history-clear]')) {
       rollHistory.length = 0;
       persistState();
-      void refreshHistoryModal();
+      historyBtn.click();
       return;
     }
     if (target.closest('[data-history-close]')) {

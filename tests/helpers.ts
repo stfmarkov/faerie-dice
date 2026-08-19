@@ -67,10 +67,35 @@ export type HistoryRoll = {
   detail?: string;
 };
 
-export async function readRollHistory(page: Page): Promise<HistoryRoll[]> {
-  return page.evaluate(() => {
-    return (window as Window & { __rollHistory?: HistoryRoll[] }).__rollHistory ?? [];
+function parseHistorySequence(sequence: string): HistoryRoll[] {
+  const pattern = /(\w+):(\d+)(?: \(([^)]+)\))?/g;
+  return [...sequence.matchAll(pattern)].map((match) => {
+    const entry: HistoryRoll = { die: match[1], value: Number(match[2]) };
+    if (match[3]) {
+      entry.detail = match[3];
+    }
+    return entry;
   });
+}
+
+export async function readRollHistory(page: Page): Promise<HistoryRoll[]> {
+  const dialog = page.getByRole('dialog', { name: 'Roll history' });
+  const wasOpen = (await dialog.count()) > 0;
+  if (!wasOpen) {
+    await openHistory(page);
+  }
+
+  try {
+    if (await dialog.locator('.history-empty').count()) {
+      return [];
+    }
+    const text = (await dialog.locator('.history-sequence').first().textContent())?.trim() ?? '';
+    return parseHistorySequence(text);
+  } finally {
+    if (!wasOpen) {
+      await closeHistory(page);
+    }
+  }
 }
 
 export async function setNumberOfRolls(page: Page, count: number) {

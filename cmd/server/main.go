@@ -64,6 +64,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
+	mux.Handle("GET /vendor/", http.StripPrefix("/vendor/", http.FileServer(http.Dir("assets"))))
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("dist/assets"))))
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
