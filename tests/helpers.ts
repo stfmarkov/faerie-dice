@@ -46,9 +46,9 @@ export async function rollOnce(page: Page): Promise<number> {
   return Number(await page.locator('#result-value').textContent());
 }
 
-export async function selectMode(page: Page, mode: 'Normal' | 'Weighted' | 'Average') {
+export async function selectMode(page: Page, mode: 'Fair' | 'Fairish' | 'Average') {
   await page.getByRole('button', { name: /Mode/ }).click();
-  await page.getByRole('option', { name: mode }).click();
+  await page.getByRole('option', { name: mode, exact: true }).click();
   await expect(page.locator('#mode-trigger')).toHaveText(mode);
 }
 
@@ -232,7 +232,7 @@ export function isHigh(value: number, sides: number): boolean {
   return value > sides / 2;
 }
 
-export function expectWeightedUpdate(
+export function expectFairishUpdate(
   before: Map<number, number>,
   after: Map<number, number>,
   rolled: number,

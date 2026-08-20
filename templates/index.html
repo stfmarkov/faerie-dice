@@ -111,10 +111,10 @@
               <div class="listbox" id="mode-listbox-root">
                 <button type="button" class="listbox-trigger" id="mode-trigger" aria-haspopup="listbox"
                   aria-expanded="false" aria-controls="mode-listbox"
-                  aria-labelledby="mode-label mode-trigger">Weighted</button>
+                  aria-labelledby="mode-label mode-trigger">Fairish</button>
                 <ul class="listbox-options" id="mode-listbox" role="listbox" aria-labelledby="mode-label" hidden>
-                  <li role="option" data-value="fair" aria-selected="false" tabindex="-1">Normal</li>
-                  <li role="option" data-value="weighted" aria-selected="true" tabindex="-1">Weighted</li>
+                  <li role="option" data-value="fair" aria-selected="false" tabindex="-1">Fair</li>
+                  <li role="option" data-value="weighted" aria-selected="true" tabindex="-1">Fairish</li>
                   <li role="option" data-value="average" aria-selected="false" tabindex="-1">Average</li>
                 </ul>
               </div>
@@ -195,7 +195,7 @@
           <input type="range" id="weighted-drop-slider" min="0" max="100" step="1" value="20" aria-valuemin="0"
             aria-valuemax="100" aria-valuenow="20" aria-valuetext="20 percent" />
           <p class="settings-hint">
-            Weighted mode: how much the rolled face's chance drops after each roll (share of that face's base chance).
+            Fairish mode: how much the rolled face's chance drops after each roll (share of that face's base chance).
           </p>
         </div>
         <div class="control-block">

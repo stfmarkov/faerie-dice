@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
-  expectWeightedUpdate,
+  expectFairishUpdate,
   isHigh,
   openProbability,
   readFaceChances,
@@ -30,7 +30,7 @@ function changedFaceCount(
   return changed;
 }
 
-test('weighted advantage records both faces and drops chance only for the kept one', async ({ page }) => {
+test('fairish advantage records both faces and drops chance only for the kept one', async ({ page }) => {
   await page.goto('/');
   await selectAggregation(page, 'Advantage');
   await openProbability(page);
@@ -46,7 +46,7 @@ test('weighted advantage records both faces and drops chance only for the kept o
   expect(entry.value).toBe(Math.max(...faces));
   expect(reported).toBe(entry.value);
 
-  expectWeightedUpdate(before, after, entry.value, SIDES);
+  expectFairishUpdate(before, after, entry.value, SIDES);
   for (const face of faces) {
     if (face !== entry.value) {
       expect(
@@ -57,7 +57,7 @@ test('weighted advantage records both faces and drops chance only for the kept o
   }
 });
 
-test('weighted disadvantage records both faces and drops chance only for the kept one', async ({ page }) => {
+test('fairish disadvantage records both faces and drops chance only for the kept one', async ({ page }) => {
   await page.goto('/');
   await selectAggregation(page, 'Disadvantage');
   await openProbability(page);
@@ -73,7 +73,7 @@ test('weighted disadvantage records both faces and drops chance only for the kep
   expect(entry.value).toBe(Math.min(...faces));
   expect(reported).toBe(entry.value);
 
-  expectWeightedUpdate(before, after, entry.value, SIDES);
+  expectFairishUpdate(before, after, entry.value, SIDES);
   for (const face of faces) {
     if (face !== entry.value) {
       expect(
@@ -84,7 +84,7 @@ test('weighted disadvantage records both faces and drops chance only for the kep
   }
 });
 
-test('weighted sum drops chance for every landed face', async ({ page }) => {
+test('fairish sum drops chance for every landed face', async ({ page }) => {
   await page.goto('/');
   await selectAggregation(page, 'Sum');
   await openProbability(page);
@@ -114,7 +114,7 @@ test('weighted sum drops chance for every landed face', async ({ page }) => {
   }
 });
 
-test('weighted none drops chance for every landed face', async ({ page }) => {
+test('fairish none drops chance for every landed face', async ({ page }) => {
   await page.goto('/');
   await setNumberOfRolls(page, 2);
   await openProbability(page);

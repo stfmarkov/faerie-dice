@@ -1,19 +1,19 @@
 import { test, expect } from '@playwright/test';
 import {
   closeProbability,
-  expectWeightedUpdate,
+  expectFairishUpdate,
   openProbability,
   readFaceChances,
   rollOnce,
 } from './helpers';
 
-test('weighted roll lowers the face and boosts the opposite group', async ({ page }) => {
+test('fairish roll lowers the face and boosts the opposite group', async ({ page }) => {
   await page.goto('/');
 
   await expect(page.getByRole('img', { name: 'fair(ish) dice' })).toBeVisible();
   await expect(page.locator('.brand-name')).toBeVisible();
   await expect(page.locator('#result-value')).toHaveText('—');
-  await expect(page.locator('#mode-trigger')).toHaveText('Weighted');
+  await expect(page.locator('#mode-trigger')).toHaveText('Fairish');
 
   await openProbability(page);
 
@@ -29,11 +29,11 @@ test('weighted roll lowers the face and boosts the opposite group', async ({ pag
   expect(rolled).toBeLessThanOrEqual(sides);
 
   const afterMainRoll = await readFaceChances(page);
-  expectWeightedUpdate(before, afterMainRoll, rolled, sides);
+  expectFairishUpdate(before, afterMainRoll, rolled, sides);
 
   const rolledFromDrawer = await rollOnce(page);
   const afterDrawerRoll = await readFaceChances(page);
-  expectWeightedUpdate(afterMainRoll, afterDrawerRoll, rolledFromDrawer, sides);
+  expectFairishUpdate(afterMainRoll, afterDrawerRoll, rolledFromDrawer, sides);
 
   await closeProbability(page);
 

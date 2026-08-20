@@ -46,7 +46,7 @@ test('unsupported persisted version is ignored without restoring state', async (
     'aria-pressed',
     'true',
   );
-  await expect(page.locator('#mode-trigger')).toHaveText('Weighted');
+  await expect(page.locator('#mode-trigger')).toHaveText('Fairish');
   await expect(page.locator('#number-of-rolls')).toHaveValue('1');
   expect(await readRollHistory(page)).toHaveLength(0);
 });
@@ -102,12 +102,12 @@ test('reload restores history, weights, and settings', async ({ page }) => {
 
   await openProbability(page);
   await rollOnce(page);
-  const weighted = await readFaceChances(page);
-  expect([...weighted.values()].some(chance => Math.abs(chance - 100 / 6) > 0.01)).toBe(true);
+  const fairish = await readFaceChances(page);
+  expect([...fairish.values()].some(chance => Math.abs(chance - 100 / 6) > 0.01)).toBe(true);
   await closeProbability(page);
 
   await setNumberOfRolls(page, 2);
-  await selectMode(page, 'Normal');
+  await selectMode(page, 'Fair');
 
   await page.reload();
 
@@ -115,7 +115,7 @@ test('reload restores history, weights, and settings', async ({ page }) => {
     'aria-pressed',
     'true',
   );
-  await expect(page.locator('#mode-trigger')).toHaveText('Normal');
+  await expect(page.locator('#mode-trigger')).toHaveText('Fair');
   await expect(page.locator('#aggregation-trigger')).toHaveText('Advantage');
   await expect(page.locator('#number-of-rolls')).toHaveValue('2');
   await expect(page.locator('#dice-per-roll')).toHaveValue('3');
@@ -127,7 +127,7 @@ test('reload restores history, weights, and settings', async ({ page }) => {
   expect(history[0]?.die).toBe('d6');
 
   await openProbability(page);
-  expectChancesUnchanged(weighted, await readFaceChances(page));
+  expectChancesUnchanged(fairish, await readFaceChances(page));
 });
 
 test('history is capped at 100 rolls', async ({ page }) => {
@@ -177,13 +177,13 @@ test('reset weights only clears the current die', async ({ page }) => {
 
   await openProbability(page);
   const d20Rolled = await rollOnce(page);
-  const d20Weighted = await readFaceChances(page);
-  expect(d20Weighted.get(d20Rolled)!).toBeLessThan(5);
+  const d20Fairish = await readFaceChances(page);
+  expect(d20Fairish.get(d20Rolled)!).toBeLessThan(5);
 
   await selectDie(page, 'd6');
   await rollOnce(page);
-  const d6Weighted = await readFaceChances(page);
-  expect([...d6Weighted.values()].some(chance => Math.abs(chance - 100 / 6) > 0.01)).toBe(true);
+  const d6Fairish = await readFaceChances(page);
+  expect([...d6Fairish.values()].some(chance => Math.abs(chance - 100 / 6) > 0.01)).toBe(true);
 
   await page.getByRole('button', { name: 'Reset weights' }).click();
   const d6Reset = await readFaceChances(page);
@@ -203,7 +203,7 @@ test('reset weights only clears the current die', async ({ page }) => {
   }
 
   await selectDie(page, 'd20');
-  expectChancesUnchanged(d20Weighted, await readFaceChances(page));
+  expectChancesUnchanged(d20Fairish, await readFaceChances(page));
 });
 
 test('default settings restore controls without wiping history or weights', async ({ page }) => {
@@ -212,7 +212,7 @@ test('default settings restore controls without wiping history or weights', asyn
   await selectDie(page, 'd6');
   await openProbability(page);
   await rollOnce(page);
-  const d6Weighted = await readFaceChances(page);
+  const d6Fairish = await readFaceChances(page);
   await closeProbability(page);
 
   await selectMode(page, 'Average');
@@ -231,7 +231,7 @@ test('default settings restore controls without wiping history or weights', asyn
     'aria-pressed',
     'true',
   );
-  await expect(page.locator('#mode-trigger')).toHaveText('Weighted');
+  await expect(page.locator('#mode-trigger')).toHaveText('Fairish');
   await expect(page.locator('#aggregation-trigger')).toHaveText('None');
   await expect(page.locator('#number-of-rolls')).toHaveValue('1');
   await expect(page.locator('#weighted-drop-value')).toHaveText('20%');
@@ -241,7 +241,7 @@ test('default settings restore controls without wiping history or weights', asyn
 
   await page.reload();
 
-  await expect(page.locator('#mode-trigger')).toHaveText('Weighted');
+  await expect(page.locator('#mode-trigger')).toHaveText('Fairish');
   await expect(page.locator('#aggregation-trigger')).toHaveText('None');
   await expect(page.locator('#number-of-rolls')).toHaveValue('1');
   await expect(page.locator('#weighted-drop-value')).toHaveText('20%');
@@ -251,5 +251,5 @@ test('default settings restore controls without wiping history or weights', asyn
 
   await selectDie(page, 'd6');
   await openProbability(page);
-  expectChancesUnchanged(d6Weighted, await readFaceChances(page));
+  expectChancesUnchanged(d6Fairish, await readFaceChances(page));
 });

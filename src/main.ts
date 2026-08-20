@@ -189,6 +189,9 @@ import './style.css'
   }
 
   const pickModeLabel = (mode: PickMode) => {
+    if (mode === 'weighted') {
+      return 'fairish';
+    }
     if (!diceModes[mode]) {
       return 'fair';
     }
@@ -894,7 +897,7 @@ import './style.css'
 
     const modeSuffix =
       pickMode === 'weighted'
-        ? ' (weighted)'
+        ? ' (fairish)'
         : pickMode === 'average'
           ? ' (average)'
           : '';
@@ -1118,7 +1121,7 @@ import './style.css'
     if (next === 'weighted') {
       setResultDisplay(
         resultValueEl.textContent || '—',
-        'Weighted picking on — rolls use and update face chances.',
+        'Fairish picking on — rolls use and update face chances.',
       );
     } else if (next === 'average') {
       setResultDisplay(
@@ -1128,7 +1131,7 @@ import './style.css'
     } else {
       setResultDisplay(
         resultValueEl.textContent || '—',
-        'Normal picking — fair rolls, weights stay frozen.',
+        'Fair picking — fair rolls, weights stay frozen.',
       );
     }
     persistState();

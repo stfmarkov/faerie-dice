@@ -8,11 +8,11 @@ import {
   selectMode,
 } from './helpers';
 
-test('normal roll keeps probabilities frozen and records history', async ({ page }) => {
+test('fair roll keeps probabilities frozen and records history', async ({ page }) => {
   await page.goto('/');
 
-  await expect(page.locator('#mode-trigger')).toHaveText('Weighted');
-  await selectMode(page, 'Normal');
+  await expect(page.locator('#mode-trigger')).toHaveText('Fairish');
+  await selectMode(page, 'Fair');
 
   const sides = 20;
   await openProbability(page);
