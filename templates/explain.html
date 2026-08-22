@@ -1,0 +1,175 @@
+{{/* Static explanation page. Uses the Vite CSS bundle, not the roller JS. */}}
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="How fair(ish) dice picks faces in Fair, Fairish, and Average modes.">
+  <title>How the dice actually work · fair(ish) dice</title>
+  <script>
+    try {
+      var theme = localStorage.getItem('fair-ish-dice-theme') || localStorage.getItem('faerie-dice-theme');
+      if (theme === 'light' || theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', theme);
+      }
+    } catch (e) { }
+  </script>
+  {{if .Stylesheet}}
+  <link rel="stylesheet" crossorigin href="{{.Stylesheet}}">{{end}}
+  {{if .ExplainStylesheet}}
+  <link rel="stylesheet" crossorigin href="{{.ExplainStylesheet}}">{{end}}
+</head>
+
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <img class="brand-logo" src="/logo-dice.avif" alt="fair(ish) dice" />
+      <span class="brand-name" aria-hidden="true">fair[ish] dice</span>
+    </a>
+    <div class="topbar-actions">
+      <a class="topbar-btn" href="/" aria-label="Roller">
+        <svg class="topbar-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+            d="M10 7l-5 5 5 5M5 12h14" />
+        </svg>
+        <span class="topbar-btn-label">Roller</span>
+      </a>
+    </div>
+  </header>
+
+  <article class="explain">
+    <h1>How the dice actually work</h1>
+
+    <p>
+      You pick how honest the die is. Fair is honest. The other two are not, on purpose.
+    </p>
+    <p>
+      Look at the probability engine while you roll. The bars are the live chances.
+    </p>
+
+    <h2>Fair</h2>
+    <p>
+      This is the boring one. Every face starts even and stays even. A d20 is 5%. A d6 is
+      16.667%. Last roll does not change the next one. Reset weights does nothing useful here.
+      There is nothing to reset.
+    </p>
+    <p>
+      Use Fair for normal, multi session games where the chances will eventually come around.
+    </p>
+
+    <h2>Fairish</h2>
+    <p>
+      This is the default. Duh.
+    </p>
+    <p>
+      After a face lands, that face loses a chunk of chance. The chunk is a share of the even
+      starting chance, not a share of whatever the face currently has. Drop strength is that
+      share. At 20% on a d20, a 5% face loses 1 percentage point.
+    </p>
+    <p>
+      That mass does not vanish. It moves to the opposite half of the die. On a d20, 1 through 10
+      are low and 11 through 20 are high. Roll a 17 and the high faces keep their odds. Each low
+      face gains a slice of the drop. Faces in the same half as the roll are left alone. A face
+      never goes below 0%. Once it is spent, rolling it again does not move anything until you
+      hit Reset weights.
+    </p>
+    <p>
+      A worked d20 at 20% drop:
+    </p>
+    <ol>
+      <li>Start. Every face is 5%.</li>
+      <li>
+        You roll 20. Face 20 drops to 4%. Faces 1 through 10 each pick up 0.1%. Faces 11 through
+        19 stay at 5%.
+      </li>
+      <li>
+        The next roll is more likely to be low. If a low face lands, probability flows back
+        toward the high half.
+      </li>
+    </ol>
+    <p>
+      Drop strength lives in Settings. 0% means Fairish still tracks faces but the drop is zero,
+      so odds stay even until you raise it. 100% tries to dump the entire base chance off the
+      face in one hit.
+    </p>
+    <p>
+      Use this for short sessions where few rolls are expected and the averages are very hard to
+      achieve. This dice mode gives you the chance to not suck all the time.
+    </p>
+
+    <h2>Average</h2>
+    <p>
+      This one is for DMs and designers.
+    </p>
+    <p>
+      Each reported face is the rounded mean of N independent fair rolls. Curve rolls is N.
+      Default is 2. Two fair d20s that come up 3 and 18 report 11. A 1 only happens when the
+      component rolls are all 1, or close enough that rounding still lands there. Raise curve
+      rolls and the bell tightens around the middle.
+    </p>
+    <p>
+      The probability bars do not move after you roll. They already are the curve. Find out if
+      your trap or breath weapon is more or less likely to kill the party, or if that DC you
+      eyeballed is a joke.
+    </p>
+
+    <h2>Aggregation</h2>
+    <p>
+      Aggregation is a fancy word for combining dice. Leave it on None and you get one face per
+      result, like a normal die. Number of rolls is how many of those results you get from one
+      click.
+    </p>
+    <p>
+      Pick Advantage, Disadvantage, or Sum and Dice per roll shows up. Number of rolls is how
+      many combinations you get. Dice per roll is how many dice are used in each aggregation.
+      Advantage keeps the highest. Disadvantage keeps the lowest. Sum adds them.
+    </p>
+    <p>
+      Three attacks with advantage. Number of rolls 3, Aggregation Advantage, Dice per roll 2.
+      One click, three numbers, each is the higher of two dice.
+    </p>
+    <p>
+      An 8d6 fireball. Number of rolls 1, Aggregation Sum, Dice per roll 8, die set to d6.
+    </p>
+    <p>
+      Fairish still remembers faces. With Sum, every face that came up loses chance. With
+      Advantage or Disadvantage, only the face you keep loses chance. The die you threw away
+      does not change the memory.
+    </p>
+
+    <h2>Probability engine</h2>
+    <p>
+      Visualy see how the math maths.
+    </p>
+    <p>
+      These are the bars. Single die is how likely each face is on the die you picked, right
+      now. In Fair every bar is the same height. In Fairish the heights change after every roll.
+      In Average they make a hill in the middle and stay there.
+    </p>
+    <p>
+      Turn aggregation on and a second set of bars shows up. That one is the number you write
+      down, not the individual dice. 2d6 Sum goes from 2 to 12, and 7 is the tall bar. Advantage
+      on a d20 is still 1 through 20, but the high faces get fatter.
+    </p>
+    <p>
+      Those bars use the odds as they are this second. After a Fairish roll the odds change, so
+      look again if you want the new picture. Reset weights is in here too. That wipes Fairish
+      memory on the selected die.
+    </p>
+
+    <h2>What Default settings does not touch</h2>
+    <p>
+      Default settings restores the tray and the two knobs, drop strength and curve rolls.
+      History stays. Face weights stay. If you want a clean Fairish memory, hit Reset weights in
+      the probability engine.
+    </p>
+
+    <p class="explain-back">
+      <a href="/">Back to the roller</a>
+    </p>
+  </article>
+</body>
+
+</html>

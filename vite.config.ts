@@ -6,7 +6,10 @@ export default defineConfig({
   build: {
     manifest: true,
     rollupOptions: {
-      input: 'src/main.ts',
+      input: {
+        main: 'src/main.ts',
+        explain: 'src/explain.css',
+      },
     },
   },
 })

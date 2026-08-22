@@ -16,8 +16,9 @@ import (
 )
 
 type pageData struct {
-	Stylesheet string
-	Script     string
+	Stylesheet        string
+	ExplainStylesheet string
+	Script            string
 }
 
 type manifestChunk struct {
@@ -57,7 +58,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	tmpl, err := template.ParseFiles("templates/index.html", "templates/history.html")
+	tmpl, err := template.ParseFiles("templates/index.html", "templates/history.html", "templates/explain.html")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to parse templates: %v\n", err)
 		os.Exit(1)
@@ -69,6 +70,13 @@ func main() {
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err := tmpl.ExecuteTemplate(w, "index.html", assets); err != nil {
+			log.Printf("template error: %v", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
+	})
+	mux.HandleFunc("GET /explain", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := tmpl.ExecuteTemplate(w, "explain.html", assets); err != nil {
 			log.Printf("template error: %v", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 		}
@@ -199,7 +207,24 @@ func loadViteAssets(manifestPath string) (pageData, error) {
 	if len(entry.CSS) > 0 {
 		data.Stylesheet = "/" + entry.CSS[0]
 	}
+	if explainCSS, ok := stylesheetFromManifest(manifest, "src/explain.css"); ok {
+		data.ExplainStylesheet = explainCSS
+	}
 	return data, nil
+}
+
+func stylesheetFromManifest(manifest map[string]manifestChunk, src string) (string, bool) {
+	chunk, ok := manifest[src]
+	if !ok {
+		return "", false
+	}
+	if strings.HasSuffix(chunk.File, ".css") {
+		return "/" + chunk.File, true
+	}
+	if len(chunk.CSS) > 0 {
+		return "/" + chunk.CSS[0], true
+	}
+	return "", false
 }
 
 func servePublicFile(w http.ResponseWriter, r *http.Request) {

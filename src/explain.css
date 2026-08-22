@@ -1,0 +1,59 @@
+.explain {
+  flex: 1;
+  width: min(42rem, 100%);
+  margin: 0 auto;
+  padding: var(--space-xl) var(--space-lg) calc(var(--space-xl) * 2);
+}
+
+.explain h1 {
+  margin: 0 0 var(--space-lg);
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 6vw, 3rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.explain h2 {
+  margin: var(--space-xl) 0 var(--space-md);
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.explain p,
+.explain li {
+  line-height: 1.6;
+}
+
+.explain p {
+  margin: 0 0 var(--space-md);
+}
+
+.explain ol {
+  margin: 0 0 var(--space-md);
+  padding-left: 1.25rem;
+}
+
+.explain li {
+  margin-bottom: var(--space-sm);
+}
+
+.explain-back {
+  margin-top: var(--space-xl);
+}
+
+.explain-back a {
+  color: var(--primary);
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.explain-back a:hover {
+  color: var(--primary-hover);
+}

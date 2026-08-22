@@ -169,6 +169,7 @@ button {
   letter-spacing: -0.2rem;
   text-transform: uppercase;
   color: var(--primary);
+  text-decoration: none;
 }
 
 .brand-logo {
@@ -614,6 +615,7 @@ input[type="number"]:focus {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  text-decoration: none;
   transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
 }
 
@@ -1087,6 +1089,17 @@ input[type="range"]::-moz-range-thumb {
   }
 }
 
+@media (max-width: 1024px) {
+  .brand-name {
+    font-size: 26px;
+  }
+
+  .topbar-btn {
+    padding: 0.55rem 0.55rem;
+    font-size: 11px;
+  }
+}
+
 @media (max-width: 767px) {
   .brand-name {
     display: none;
@@ -1094,16 +1107,6 @@ input[type="range"]::-moz-range-thumb {
 
   .brand-logo {
     height: 2rem;
-  }
-
-  .topbar-btn {
-    justify-content: center;
-    width: 2.5rem;
-    padding: 0;
-  }
-
-  .topbar-btn-label {
-    display: none;
   }
 
   .shell {
@@ -1189,6 +1192,18 @@ input[type="range"]::-moz-range-thumb {
     min-height: 3rem;
     font-size: 24px;
     line-height: 32px;
+  }
+}
+
+@media (max-width: 580px) {
+  .topbar-btn {
+    justify-content: center;
+    width: 2.5rem;
+    padding: 0;
+  }
+
+  .topbar-btn-label {
+    display: none;
   }
 }
 

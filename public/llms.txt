@@ -7,3 +7,4 @@ fair(ish) dice supports d4 through d100. **Weighted** mode reduces a rolled face
 ## Pages
 
 - [fair(ish) dice](/): Interactive dice roller
+- [How the dice actually work](/explain): Fair, Fairish, and Average modes, plus aggregation and the probability engine
