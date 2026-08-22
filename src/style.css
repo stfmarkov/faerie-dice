@@ -174,8 +174,8 @@ button {
 
 .brand-logo {
   display: block;
-  height: 2.5rem;
-  width: auto;
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
 }
 
@@ -1149,7 +1149,8 @@ input[type="range"]::-moz-range-thumb {
   }
 
   .brand-logo {
-    height: 2rem;
+    width: 32px;
+    height: 32px;
   }
 
   .shell {
