@@ -16,6 +16,7 @@ test('fairish roll lowers the face and boosts the opposite group', async ({ page
   await expect(page.locator('#mode-trigger')).toHaveText('Fairish');
 
   await openProbability(page);
+  await expect(page.locator('#probability-current-roll')).toHaveText('Current roll: —');
 
   const sides = 20;
   const before = await readFaceChances(page);
@@ -27,11 +28,15 @@ test('fairish roll lowers the face and boosts the opposite group', async ({ page
   const rolled = await rollOnce(page);
   expect(rolled).toBeGreaterThanOrEqual(1);
   expect(rolled).toBeLessThanOrEqual(sides);
+  await expect(page.locator('#probability-current-roll')).toHaveText(`Current roll: ${rolled}`);
 
   const afterMainRoll = await readFaceChances(page);
   expectFairishUpdate(before, afterMainRoll, rolled, sides);
 
   const rolledFromDrawer = await rollOnce(page);
+  await expect(page.locator('#probability-current-roll')).toHaveText(
+    `Current roll: ${rolledFromDrawer}`,
+  );
   const afterDrawerRoll = await readFaceChances(page);
   expectFairishUpdate(afterMainRoll, afterDrawerRoll, rolledFromDrawer, sides);
 

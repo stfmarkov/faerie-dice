@@ -98,6 +98,12 @@ export async function readRollHistory(page: Page): Promise<HistoryRoll[]> {
   }
 }
 
+export async function setTarget(page: Page, value: number) {
+  const input = page.locator('#target-number');
+  await input.fill(String(value));
+  await expect(input).toHaveValue(String(value));
+}
+
 export async function setNumberOfRolls(page: Page, count: number) {
   const input = page.locator('#number-of-rolls');
   let current = Number(await input.inputValue());

@@ -158,6 +158,7 @@
         <div class="probability-heading">
           <h2 class="control-label">Probability engine</h2>
           <span class="probability-config" id="probability-config">Current config: 1d20</span>
+          <span class="probability-current-roll" id="probability-current-roll" aria-live="polite">Current roll: —</span>
         </div>
         <div class="probability-header-actions">
           <button type="button" id="probability-roll-btn" class="probability-roll">Roll</button>
@@ -166,6 +167,17 @@
             Close
           </button>
         </div>
+      </div>
+      <div class="probability-target">
+        <div class="control-block">
+          <label class="control-label" for="target-number">Target</label>
+          <div class="stepper">
+            <button type="button" id="target-dec" class="stepper-btn" aria-label="Decrease target">−</button>
+            <input type="number" id="target-number" min="1" max="10000" inputmode="numeric" />
+            <button type="button" id="target-inc" class="stepper-btn" aria-label="Increase target">+</button>
+          </div>
+        </div>
+        <p class="probability-target-chance" id="target-chance" aria-live="polite" hidden></p>
       </div>
       <div class="probability-graphs">
         <section class="probability-graph" aria-label="Single die probabilities">

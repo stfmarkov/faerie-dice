@@ -242,6 +242,11 @@ import './style.css'
   const probabilityToggleBtn = document.querySelector<HTMLButtonElement>('#probability-toggle')!;
   const probabilityCloseBtn = document.querySelector<HTMLButtonElement>('#probability-close')!;
   const probabilityConfigEl = document.querySelector<HTMLElement>('#probability-config')!;
+  const probabilityCurrentRollEl = document.querySelector<HTMLElement>('#probability-current-roll')!;
+  const targetInput = document.querySelector<HTMLInputElement>('#target-number')!;
+  const targetDecBtn = document.querySelector<HTMLButtonElement>('#target-dec')!;
+  const targetIncBtn = document.querySelector<HTMLButtonElement>('#target-inc')!;
+  const targetChanceEl = document.querySelector<HTMLElement>('#target-chance')!;
   const settingsEl = document.querySelector<HTMLElement>('#settings-drawer')!;
   const settingsToggleBtn = document.querySelector<HTMLButtonElement>('#settings-toggle')!;
   const settingsCloseBtn = document.querySelector<HTMLButtonElement>('#settings-close')!;
@@ -531,6 +536,28 @@ import './style.css'
     dicePerRollInput.value = String(Math.min(100, Math.max(2, value)));
   };
 
+  const getTargetNumber = () => {
+    const raw = targetInput.value.trim();
+    if (raw === '') {
+      return null;
+    }
+    const value = Number.parseInt(raw, 10);
+    if (!Number.isFinite(value)) {
+      return null;
+    }
+    return value;
+  };
+
+  const setTargetNumber = (value: number) => {
+    targetInput.value = String(Math.min(10000, Math.max(1, Math.round(value))));
+  };
+
+  const stepTarget = (delta: number) => {
+    const current = getTargetNumber();
+    setTargetNumber(current === null ? 1 : current + delta);
+    renderAggregatedDistribution();
+  };
+
   const renderDicePerRollControl = () => {
     dicePerRollBlock.hidden = !usesDicePerRoll();
     if (usesDicePerRoll()) {
@@ -738,6 +765,18 @@ import './style.css'
     resultValueEl.textContent = value;
     resultMetaEl.innerHTML = metaHtml;
     resultDieEl.dataset.digits = String(Math.max(1, value.replace(/\D/g, '').length || 1));
+    renderProbabilityCurrentRoll(value);
+  };
+
+  const renderProbabilityCurrentRoll = (heroValue: string) => {
+    if (heroValue === '—' || lastReportedValues.length === 0) {
+      probabilityCurrentRollEl.textContent = 'Current roll: —';
+      return;
+    }
+    const shown = lastReportedValues.length <= 8
+      ? lastReportedValues.join(', ')
+      : heroValue;
+    probabilityCurrentRollEl.textContent = `Current roll: ${shown}`;
   };
 
   const totalRolls = (rolls: number[]) => rolls.reduce((sum, value) => sum + value, 0);
@@ -873,12 +912,14 @@ import './style.css'
         </li>
       `;
     }).join('');
+    renderTargetChance();
   };
 
   const renderAggregatedDistribution = () => {
     if (!resultMode) {
       aggregatedGraphEl.hidden = true;
       aggregatedDistributionEl.innerHTML = '';
+      renderTargetChance();
       return;
     }
 
@@ -908,6 +949,7 @@ import './style.css'
 
     if (distribution.length === 0) {
       aggregatedDistributionEl.innerHTML = '';
+      renderTargetChance();
       return;
     }
 
@@ -916,6 +958,7 @@ import './style.css'
     const maxValue = distribution[distribution.length - 1].value;
     const middle = Math.round((minValue + maxValue) / 2);
     const hitValues = new Set(lastReportedValues);
+    const target = getTargetNumber();
     aggregatedDistributionEl.style.setProperty('--sides', String(distribution.length));
     aggregatedDistributionEl.innerHTML = distribution.map(entry => {
       const height = maxChance > 0 ? Math.max(0, (entry.chance / maxChance) * 100) : 0;
@@ -925,8 +968,13 @@ import './style.css'
         entry.value === maxValue ||
         entry.value === middle;
       const labelClass = isKeyLabel ? 'key-label' : '';
+      const toneClass = target === null
+        ? ''
+        : entry.value < target
+          ? 'weight-low'
+          : 'weight-high';
       return `
-        <li class="${hitClass} ${labelClass}" title="${entry.value}: ${formatChance(entry.chance)}">
+        <li class="${hitClass} ${toneClass} ${labelClass}" title="${entry.value}: ${formatChance(entry.chance)}">
           <span class="bar-track">
             <span class="bar" style="height: ${height}%"></span>
           </span>
@@ -934,6 +982,7 @@ import './style.css'
         </li>
       `;
     }).join('');
+    renderTargetChance();
   };
 
   // ways[s] = number of ways to total s with identical fair dice (faces 1..sides)
@@ -1075,6 +1124,47 @@ import './style.css'
     return distribution;
   };
 
+  const getReportedDistribution = () => {
+    if (resultMode === 'sum') {
+      return sumProbabilityDistribution();
+    }
+    if (resultMode === 'advantage') {
+      return advantageProbabilityDistribution();
+    }
+    if (resultMode === 'disadvantage') {
+      return disadvantageProbabilityDistribution();
+    }
+    return pickMode === 'average'
+      ? averageCurveFaceChances(selectedDice.sides)
+      : getFaceChances(selectedDice);
+  };
+
+  const renderTargetChance = () => {
+    const target = getTargetNumber();
+    if (target === null) {
+      targetChanceEl.hidden = true;
+      targetChanceEl.innerHTML = '';
+      return;
+    }
+
+    const distribution = getReportedDistribution();
+    let under = 0;
+    let over = 0;
+    for (const entry of distribution) {
+      if (entry.value < target) {
+        under += entry.chance;
+      } else {
+        over += entry.chance;
+      }
+    }
+
+    targetChanceEl.hidden = false;
+    targetChanceEl.innerHTML = `
+      <span id="target-under" class="target-under">Under ${formatChance(under)}</span>
+      <span id="target-over" class="target-over">Over ${formatChance(over)}</span>
+    `;
+  };
+
   const selectDie = (name: string) => {
     const nextDice = diceTypes.find(d => d.name === name);
     if (!nextDice) {
@@ -1199,6 +1289,18 @@ import './style.css'
     persistState();
   });
 
+  targetDecBtn.addEventListener('click', () => {
+    stepTarget(-1);
+  });
+
+  targetIncBtn.addEventListener('click', () => {
+    stepTarget(1);
+  });
+
+  targetInput.addEventListener('input', () => {
+    renderAggregatedDistribution();
+  });
+
   const performRoll = () => {
     const rollCount = getRollCount();
     setRollCount(rollCount);
@@ -1304,6 +1406,7 @@ import './style.css'
     setRollCount(settings.rollCount);
     setDicePerRoll(settings.dicePerRoll);
     setAverageCurveRolls(settings.averageCurveRolls);
+    targetInput.value = '';
     applyTheme('dark');
     renderStageDie();
     renderDieSelect();

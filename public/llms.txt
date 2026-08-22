@@ -2,7 +2,7 @@
 
 > fair(ish) dice is a browser tool for rolling polyhedral dice in Normal, Weighted (memory-shifting odds), or Average (bell-curve) mode.
 
-fair(ish) dice supports d4 through d100. **Weighted** mode reduces a rolled face’s chance (tunable drop strength) and shifts probability toward the opposite high/low half of the die. **Average** mode reports one face drawn as the mean of N fair rolls (tunable curve rolls, default 2), so extremes are rare. Rolls can be combined with advantage, disadvantage, or sum. A settings drawer holds mode-specific controls; the probability engine shows single-die face chances and, when aggregation is on, the distribution of the reported result — using live weights in Weighted mode.
+fair(ish) dice supports d4 through d100. **Weighted** mode reduces a rolled face’s chance (tunable drop strength) and shifts probability toward the opposite high/low half of the die. **Average** mode reports one face drawn as the mean of N fair rolls (tunable curve rolls, default 2), so extremes are rare. Rolls can be combined with advantage, disadvantage, or sum. A settings drawer holds mode-specific controls; the probability engine shows single-die face chances and, when aggregation is on, the distribution of the reported result — using live weights in Weighted mode. A target number on that panel shows under/over chances, and paints the aggregated graph the same way when aggregation is on.
 
 ## Pages
 
