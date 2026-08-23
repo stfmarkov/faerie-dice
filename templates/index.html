@@ -17,6 +17,9 @@
       }
     } catch (e) { }
   </script>
+  {{range .PreloadFonts}}
+  <link rel="preload" href="{{.}}" as="font" type="font/woff2" crossorigin>
+  {{end}}
   {{if .Stylesheet}}
   <link rel="stylesheet" crossorigin href="{{.Stylesheet}}">{{end}}
   <script type="module" crossorigin src="{{.Script}}"></script>

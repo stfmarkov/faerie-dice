@@ -19,11 +19,13 @@ type pageData struct {
 	Stylesheet        string
 	ExplainStylesheet string
 	Script            string
+	PreloadFonts      []string
 }
 
 type manifestChunk struct {
 	File    string   `json:"file"`
 	CSS     []string `json:"css"`
+	Assets  []string `json:"assets"`
 	IsEntry bool     `json:"isEntry"`
 	Src     string   `json:"src"`
 }
@@ -66,7 +68,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /vendor/", http.StripPrefix("/vendor/", http.FileServer(http.Dir("assets"))))
-	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("dist/assets"))))
+	mux.Handle("GET /assets/", http.StripPrefix("/assets/", immutableAssets(http.FileServer(http.Dir("dist/assets")))))
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err := tmpl.ExecuteTemplate(w, "index.html", assets); err != nil {
@@ -210,7 +212,49 @@ func loadViteAssets(manifestPath string) (pageData, error) {
 	if explainCSS, ok := stylesheetFromManifest(manifest, "src/explain.css"); ok {
 		data.ExplainStylesheet = explainCSS
 	}
+	data.PreloadFonts = preloadFonts(manifest, entry)
 	return data, nil
+}
+
+func immutableAssets(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func chunkAssets(manifest map[string]manifestChunk, chunk manifestChunk) []string {
+	files := append([]string{}, chunk.Assets...)
+	for _, css := range chunk.CSS {
+		for _, other := range manifest {
+			if other.File == css {
+				files = append(files, other.Assets...)
+				break
+			}
+		}
+	}
+	return files
+}
+
+func preloadFonts(manifest map[string]manifestChunk, entry manifestChunk) []string {
+	wanted := []string{"inter-latin-400", "space-grotesk-latin-700"}
+	files := chunkAssets(manifest, entry)
+	if len(files) == 0 {
+		for _, chunk := range manifest {
+			files = append(files, chunk.Assets...)
+		}
+	}
+	preloads := make([]string, 0, len(wanted))
+	for _, name := range wanted {
+		for _, file := range files {
+			if !strings.Contains(file, name) || !strings.HasSuffix(file, ".woff2") {
+				continue
+			}
+			preloads = append(preloads, "/"+file)
+			break
+		}
+	}
+	return preloads
 }
 
 func stylesheetFromManifest(manifest map[string]manifestChunk, src string) (string, bool) {
