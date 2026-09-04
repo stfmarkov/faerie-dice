@@ -13,7 +13,7 @@ RUN npm run build
 # Go binary
 FROM golang:1.22-alpine AS backend
 WORKDIR /app
-COPY go.mod ./
+COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd ./cmd
 RUN CGO_ENABLED=0 go build -o /server ./cmd/server

@@ -9,6 +9,7 @@ export default defineConfig({
       input: {
         main: 'src/main.ts',
         explain: 'src/explain.css',
+        feedback: 'src/feedback.ts',
       },
     },
   },

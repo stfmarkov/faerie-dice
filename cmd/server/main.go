@@ -16,10 +16,12 @@ import (
 )
 
 type pageData struct {
-	Stylesheet        string
-	ExplainStylesheet string
-	Script            string
-	PreloadFonts      []string
+	Stylesheet         string
+	ExplainStylesheet  string
+	FeedbackStylesheet string
+	Script             string
+	FeedbackScript     string
+	PreloadFonts       []string
 }
 
 type manifestChunk struct {
@@ -48,6 +50,10 @@ type historyViewData struct {
 }
 
 func main() {
+	if err := loadDotEnv(".env"); err != nil {
+		log.Printf("failed to load .env: %v", err)
+	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8888"
@@ -60,11 +66,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	tmpl, err := template.ParseFiles("templates/index.html", "templates/history.html", "templates/explain.html")
+	tmpl, err := template.ParseFiles("templates/index.html", "templates/history.html", "templates/explain.html", "templates/feedback.html")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to parse templates: %v\n", err)
 		os.Exit(1)
 	}
+
+	feedback := loadFeedbackConfig()
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /vendor/", http.StripPrefix("/vendor/", http.FileServer(http.Dir("assets"))))
@@ -83,6 +91,14 @@ func main() {
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 		}
 	})
+	mux.HandleFunc("GET /feedback", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := tmpl.ExecuteTemplate(w, "feedback.html", assets); err != nil {
+			log.Printf("template error: %v", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
+	})
+	mux.HandleFunc("POST /feedback", feedback.handlePost)
 	mux.HandleFunc("POST /history", func(w http.ResponseWriter, r *http.Request) {
 		rolls, err := parseHistoryPayload(r)
 		if err != nil {
@@ -211,6 +227,12 @@ func loadViteAssets(manifestPath string) (pageData, error) {
 	}
 	if explainCSS, ok := stylesheetFromManifest(manifest, "src/explain.css"); ok {
 		data.ExplainStylesheet = explainCSS
+	}
+	if chunk, ok := manifest["src/feedback.ts"]; ok && chunk.File != "" {
+		data.FeedbackScript = "/" + chunk.File
+	}
+	if feedbackCSS, ok := stylesheetFromManifest(manifest, "src/feedback.ts"); ok {
+		data.FeedbackStylesheet = feedbackCSS
 	}
 	data.PreloadFonts = preloadFonts(manifest, entry)
 	return data, nil

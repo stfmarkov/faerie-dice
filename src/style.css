@@ -620,6 +620,70 @@ input[type="number"]:focus {
   background: var(--glass);
 }
 
+.feedback-fab {
+  position: fixed;
+  left: var(--space-md);
+  bottom: var(--space-md);
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius);
+  background: var(--surface-container);
+  color: var(--on-surface-variant);
+  text-decoration: none;
+  box-shadow: var(--inner-glow);
+}
+
+.feedback-fab-icon {
+  display: block;
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.feedback-fab-tip {
+  position: absolute;
+  left: calc(100% + var(--space-sm));
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius);
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-4px);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.feedback-fab:hover,
+.feedback-fab:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--glass);
+}
+
+.feedback-fab:hover .feedback-fab-tip,
+.feedback-fab:focus-visible .feedback-fab-tip {
+  opacity: 1;
+  transform: none;
+}
+
+@media (min-width: 768px) {
+  .feedback-fab {
+    left: 1.5rem;
+  }
+}
+
 .settings {
   position: absolute;
   top: 0;

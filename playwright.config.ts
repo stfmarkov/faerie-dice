@@ -22,5 +22,10 @@ export default defineConfig({
     url: 'http://localhost:8888',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      ...process.env,
+      FEEDBACK_ENDPOINT: '',
+      FEEDBACK_KEY: '',
+    },
   },
 });
