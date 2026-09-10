@@ -206,7 +206,10 @@ import './style.css'
     detail?: string;
   };
 
-  type ResultMode = 'advantage' | 'disadvantage' | 'sum';
+  type ResultMode = 'advantage' | 'disadvantage' | 'sum' | 'drop-lowest' | 'drop-highest';
+
+  const isDropMode = (mode: ResultMode | null): mode is 'drop-lowest' | 'drop-highest' =>
+    mode === 'drop-lowest' || mode === 'drop-highest';
 
   let selectedDice = diceTypes[5]; // d20
   let lastRolls: number[] = [];
@@ -697,6 +700,8 @@ import './style.css'
     const nextResult = record.resultMode === 'advantage'
       || record.resultMode === 'disadvantage'
       || record.resultMode === 'sum'
+      || record.resultMode === 'drop-lowest'
+      || record.resultMode === 'drop-highest'
       ? record.resultMode
       : record.resultMode === null
         ? null
@@ -786,12 +791,39 @@ import './style.css'
     value: number;
   };
 
+  const withoutOne = (faces: number[], dropped: number) => {
+    const index = faces.indexOf(dropped);
+    return faces.filter((_, faceIndex) => faceIndex !== index);
+  };
+
+  const keptFaces = (faces: number[], mode: ResultMode) => {
+    if (mode === 'advantage') {
+      return [Math.max(...faces)];
+    }
+    if (mode === 'disadvantage') {
+      return [Math.min(...faces)];
+    }
+    if (mode === 'sum') {
+      return faces;
+    }
+    if (mode === 'drop-lowest') {
+      return withoutOne(faces, Math.min(...faces));
+    }
+    return withoutOne(faces, Math.max(...faces));
+  };
+
   const historyDetailFor = (group: RollGroup, mode: ResultMode | null) => {
     if (mode === 'advantage' || mode === 'disadvantage') {
       return group.faces.join(', ');
     }
     if (mode === 'sum') {
       return `sum of ${group.faces.join(', ')}`;
+    }
+    if (mode === 'drop-lowest') {
+      return `drop lowest of ${group.faces.join(', ')}`;
+    }
+    if (mode === 'drop-highest') {
+      return `drop highest of ${group.faces.join(', ')}`;
     }
     return undefined;
   };
@@ -803,7 +835,13 @@ import './style.css'
     if (mode === 'disadvantage') {
       return 'Disadvantage';
     }
-    return 'Sum';
+    if (mode === 'sum') {
+      return 'Sum';
+    }
+    if (mode === 'drop-lowest') {
+      return 'Drop lowest';
+    }
+    return 'Drop highest';
   };
 
   const formatRollResult = (groups: RollGroup[], mode: ResultMode | null, picking: PickMode) => {
@@ -861,7 +899,11 @@ import './style.css'
         ? 'advantage'
         : resultMode === 'disadvantage'
           ? 'disadvantage'
-          : 'sum';
+          : resultMode === 'sum'
+            ? 'sum'
+            : resultMode === 'drop-lowest'
+              ? 'drop lowest'
+              : 'drop highest';
       probabilityConfigEl.textContent = rolls === 1
         ? `Current config: ${dice}${die} ${label}`
         : `Current config: ${rolls}× ${dice}${die} ${label}`;
@@ -928,12 +970,16 @@ import './style.css'
         ? sumProbabilityDistribution()
         : resultMode === 'advantage'
           ? advantageProbabilityDistribution()
-          : disadvantageProbabilityDistribution();
+          : resultMode === 'disadvantage'
+            ? disadvantageProbabilityDistribution()
+            : dropKeepSumProbabilityDistribution(resultMode === 'drop-highest');
 
     const labels: Record<ResultMode, string> = {
       sum: 'Sum distribution',
       advantage: 'Advantage distribution',
       disadvantage: 'Disadvantage distribution',
+      'drop-lowest': 'Drop lowest distribution',
+      'drop-highest': 'Drop highest distribution',
     };
 
     const modeSuffix =
@@ -1027,7 +1073,8 @@ import './style.css'
   // Face probabilities as fractions (sum to 1) for the active pick mode.
   // Weighted uses live weights (i.i.d. snapshot of current odds).
   // Multi-die weighted rolls still update memory between dice while picking;
-  // advantage / disadvantage then keep the chance drop only on the used face.
+  // advantage / disadvantage then keep the chance drop only on the used face,
+  // and drop lowest / highest drop chance on each kept face in the remaining sum.
   // The graph freezes tonight's chances to answer “what do reported results look like now?”
   const getPickFaceProbabilities = () => {
     const sides = selectedDice.sides;
@@ -1124,6 +1171,146 @@ import './style.css'
     return distribution;
   };
 
+  // P(X = c) for X ~ Binomial(n, p), stable enough for n up to 100.
+  const binomialProbs = (n: number, p: number) => {
+    const probs = new Float64Array(n + 1);
+    if (n === 0 || p <= 0) {
+      probs[0] = 1;
+      return probs;
+    }
+    if (p >= 1) {
+      probs[n] = 1;
+      return probs;
+    }
+
+    const logP = Math.log(p);
+    const logQ = Math.log(1 - p);
+    const logs = new Float64Array(n + 1);
+    let logC = 0;
+    let maxLog = -Infinity;
+    for (let c = 0; c <= n; c++) {
+      logs[c] = logC + c * logP + (n - c) * logQ;
+      if (logs[c] > maxLog) {
+        maxLog = logs[c];
+      }
+      if (c < n) {
+        logC += Math.log(n - c) - Math.log(c + 1);
+      }
+    }
+
+    let total = 0;
+    for (let c = 0; c <= n; c++) {
+      probs[c] = Math.exp(logs[c] - maxLog);
+      total += probs[c];
+    }
+    if (total > 0) {
+      for (let c = 0; c <= n; c++) {
+        probs[c] /= total;
+      }
+    }
+    return probs;
+  };
+
+  const addScaledMass = (target: Float64Array, source: Float64Array, shift: number, scale: number) => {
+    if (scale === 0) {
+      return;
+    }
+    for (let sum = 0; sum < source.length; sum++) {
+      const mass = source[sum];
+      if (mass !== 0) {
+        target[sum + shift] += mass * scale;
+      }
+    }
+  };
+
+  // Drop the single lowest or highest die, then sum the rest.
+  const dropKeepSumProbabilityDistribution = (dropHighest: boolean) => {
+    const n = getDicePerRoll();
+    const keep = n - 1;
+    if (keep < 1) {
+      return [];
+    }
+
+    const sides = selectedDice.sides;
+    const faceProb = getPickFaceProbabilities();
+    const maxSum = keep * sides;
+    const cost = sides * keep * keep * maxSum;
+    if (cost > 8_000_000) {
+      return [];
+    }
+
+    const faceOrder = dropHighest
+      ? Array.from({ length: sides }, (_, i) => i + 1)
+      : Array.from({ length: sides }, (_, i) => sides - i);
+
+    let continuing: Float64Array[] = Array.from({ length: keep }, () => new Float64Array(0));
+    continuing[0] = new Float64Array(1);
+    continuing[0][0] = 1;
+    const finalized = new Float64Array(maxSum + 1);
+
+    for (let index = 0; index < faceOrder.length; index++) {
+      const face = faceOrder[index];
+      let pRemaining = 0;
+      for (let later = index; later < faceOrder.length; later++) {
+        pRemaining += faceProb[faceOrder[later] - 1];
+      }
+      const pEqual = faceProb[face - 1];
+      const pRest = pRemaining - pEqual;
+      const pThis = pRemaining <= 0 ? 0 : (pRest <= 1e-15 ? 1 : pEqual / pRemaining);
+
+      const nextContinuing: Float64Array[] = Array.from({ length: keep }, () => new Float64Array(0));
+
+      for (let kept = 0; kept < keep; kept++) {
+        const mass = continuing[kept];
+        if (mass.length === 0) {
+          continue;
+        }
+
+        const slotsLeft = keep - kept;
+        const remainingDice = n - kept;
+        if (remainingDice <= 0) {
+          continue;
+        }
+
+        const binom = binomialProbs(remainingDice, pThis);
+        let pFinalize = 0;
+        for (let count = slotsLeft; count <= remainingDice; count++) {
+          pFinalize += binom[count];
+        }
+        if (pFinalize > 0) {
+          addScaledMass(finalized, mass, face * slotsLeft, pFinalize);
+        }
+
+        for (let count = 0; count < slotsLeft && count <= remainingDice; count++) {
+          const pCount = binom[count];
+          if (pCount === 0) {
+            continue;
+          }
+          const nextKept = kept + count;
+          const nextLen = mass.length + face * count;
+          if (nextContinuing[nextKept].length < nextLen) {
+            const grown = new Float64Array(nextLen);
+            grown.set(nextContinuing[nextKept]);
+            nextContinuing[nextKept] = grown;
+          }
+          addScaledMass(nextContinuing[nextKept], mass, face * count, pCount);
+        }
+      }
+
+      continuing = nextContinuing;
+    }
+
+    const minValue = keep;
+    const distribution: Array<{ value: number, chance: number }> = [];
+    for (let value = minValue; value <= maxSum; value++) {
+      distribution.push({
+        value,
+        chance: (finalized[value] ?? 0) * 100,
+      });
+    }
+    return distribution;
+  };
+
   const getReportedDistribution = () => {
     if (resultMode === 'sum') {
       return sumProbabilityDistribution();
@@ -1133,6 +1320,9 @@ import './style.css'
     }
     if (resultMode === 'disadvantage') {
       return disadvantageProbabilityDistribution();
+    }
+    if (isDropMode(resultMode)) {
+      return dropKeepSumProbabilityDistribution(resultMode === 'drop-highest');
     }
     return pickMode === 'average'
       ? averageCurveFaceChances(selectedDice.sides)
@@ -1310,23 +1500,26 @@ import './style.css'
     if (resultMode) {
       const dicePerRoll = getDicePerRoll();
       setDicePerRoll(dicePerRoll);
-      const dropKeptFaceOnly =
+      const rememberKeptOnly =
         pickMode === 'weighted' &&
-        (resultMode === 'advantage' || resultMode === 'disadvantage');
+        (resultMode === 'advantage' || resultMode === 'disadvantage' || isDropMode(resultMode));
       for (let rollIndex = 0; rollIndex < rollCount; rollIndex++) {
-        const beforePool = dropKeptFaceOnly ? snapshotModifiers(selectedDice) : null;
+        const beforePool = rememberKeptOnly ? snapshotModifiers(selectedDice) : null;
         const faces = Array.from({ length: dicePerRoll }, () =>
           rollDice(selectedDice, pickMode),
         );
+        const kept = keptFaces(faces, resultMode);
         const value =
           resultMode === 'advantage'
             ? Math.max(...faces)
             : resultMode === 'disadvantage'
               ? Math.min(...faces)
-              : totalRolls(faces);
+              : totalRolls(kept);
         if (beforePool !== null) {
           restoreModifiers(selectedDice, beforePool);
-          modifyValues(selectedDice, value);
+          for (const face of kept) {
+            modifyValues(selectedDice, face);
+          }
         }
         groups.push({ faces, value });
       }

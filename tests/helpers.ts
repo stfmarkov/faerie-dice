@@ -2,7 +2,15 @@ import { expect, type Page } from '@playwright/test';
 
 /** Face → chance %, parsed from `#weights li[title="N: X.XXX%"]`. */
 export async function readFaceChances(page: Page): Promise<Map<number, number>> {
-  const titles = await page.locator('#weights li').evaluateAll(items =>
+  return readBarChances(page, '#weights li');
+}
+
+export async function readAggregatedChances(page: Page): Promise<Map<number, number>> {
+  return readBarChances(page, '#aggregated-distribution li');
+}
+
+async function readBarChances(page: Page, selector: string): Promise<Map<number, number>> {
+  const titles = await page.locator(selector).evaluateAll(items =>
     items.map(item => item.getAttribute('title') ?? ''),
   );
 
@@ -54,7 +62,7 @@ export async function selectMode(page: Page, mode: 'Fair' | 'Fairish' | 'Average
 
 export async function selectAggregation(
   page: Page,
-  aggregation: 'None' | 'Advantage' | 'Disadvantage' | 'Sum',
+  aggregation: 'None' | 'Advantage' | 'Disadvantage' | 'Sum' | 'Drop lowest' | 'Drop highest',
 ) {
   await page.getByRole('button', { name: /Aggregation/ }).click();
   await page.getByRole('option', { name: aggregation, exact: true }).click();

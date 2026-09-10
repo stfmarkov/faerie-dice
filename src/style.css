@@ -512,6 +512,8 @@ input[type="number"]:focus {
   margin: 0;
   padding: var(--space-xs);
   list-style: none;
+  max-height: min(18rem, 45vh);
+  overflow-y: auto;
   border: 1px solid var(--outline-variant);
   border-radius: var(--radius-lg);
   background: var(--surface-container-high);

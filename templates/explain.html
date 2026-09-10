@@ -125,9 +125,11 @@
       click.
     </p>
     <p>
-      Pick Advantage, Disadvantage, or Sum and Dice per roll shows up. Number of rolls is how
-      many combinations you get. Dice per roll is how many dice are used in each aggregation.
-      Advantage keeps the highest. Disadvantage keeps the lowest. Sum adds them.
+      Pick Advantage, Disadvantage, Sum, Drop lowest, or Drop highest and Dice per roll shows
+      up. Number of rolls is how many combinations you get. Dice per roll is how many dice are
+      used in each aggregation. Advantage keeps the highest. Disadvantage keeps the lowest. Sum
+      adds them. Drop lowest throws away the smallest die and adds the rest. Drop highest
+      throws away the biggest.
     </p>
     <p>
       Three attacks with advantage. Number of rolls 3, Aggregation Advantage, Dice per roll 2.
@@ -137,9 +139,15 @@
       An 8d6 fireball. Number of rolls 1, Aggregation Sum, Dice per roll 8, die set to d6.
     </p>
     <p>
+      Ability scores the old way. Die set to d6, Aggregation Drop lowest, Dice per roll 4.
+      Six scores in one click if you set Number of rolls to 6. The number you write down is
+      the three dice you kept, added up, so 3 through 18.
+    </p>
+    <p>
       Fairish still remembers faces. With Sum, every face that came up loses chance. With
-      Advantage or Disadvantage, only the face you keep loses chance. The die you threw away
-      does not change the memory.
+      Advantage or Disadvantage, only the face you keep loses chance. Drop lowest and Drop
+      highest work the same way on the dice you kept. The die you threw away does not change
+      the memory.
     </p>
 
     <h2>Probability engine</h2>
@@ -154,7 +162,8 @@
     <p>
       Turn aggregation on and a second set of bars shows up. That one is the number you write
       down, not the individual dice. 2d6 Sum goes from 2 to 12, and 7 is the tall bar. Advantage
-      on a d20 is still 1 through 20, but the high faces get fatter.
+      on a d20 is still 1 through 20, but the high faces get fatter. 4d6 drop lowest is 3
+      through 18, with 12 and 13 the usual peak.
     </p>
     <p>
       Those bars use the odds as they are this second. After a Fairish roll the odds change, so

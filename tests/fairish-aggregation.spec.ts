@@ -7,13 +7,25 @@ import {
   readRollHistory,
   rollOnce,
   selectAggregation,
+  selectDie,
+  setDicePerRoll,
   setNumberOfRolls,
 } from './helpers';
 
 const SIDES = 20;
 
-function parseFaces(detail: string, aggregation: 'advantage' | 'disadvantage' | 'sum'): number[] {
-  const text = aggregation === 'sum' ? detail.replace(/^sum of /, '') : detail;
+function parseFaces(
+  detail: string,
+  aggregation: 'advantage' | 'disadvantage' | 'sum' | 'drop-lowest' | 'drop-highest',
+): number[] {
+  const text =
+    aggregation === 'sum'
+      ? detail.replace(/^sum of /, '')
+      : aggregation === 'drop-lowest'
+        ? detail.replace(/^drop lowest of /, '')
+        : aggregation === 'drop-highest'
+          ? detail.replace(/^drop highest of /, '')
+          : detail;
   return text.split(', ').map(Number);
 }
 
@@ -135,4 +147,40 @@ test('fairish none drops chance for every landed face', async ({ page }) => {
   }
 
   expect(changedFaceCount(before, after)).toBeGreaterThan(11);
+});
+
+test('fairish drop lowest drops chance only for kept faces', async ({ page }) => {
+  await page.goto('/');
+  await selectDie(page, 'd6');
+  await selectAggregation(page, 'Drop lowest');
+  await setDicePerRoll(page, 4);
+  await openProbability(page);
+
+  const before = await readFaceChances(page);
+  const reported = await rollOnce(page);
+  const after = await readFaceChances(page);
+
+  const history = await readRollHistory(page);
+  const entry = history[history.length - 1];
+  const faces = parseFaces(entry.detail!, 'drop-lowest');
+  expect(faces).toHaveLength(4);
+  const dropped = Math.min(...faces);
+  const kept = faces.filter((_, index) => index !== faces.indexOf(dropped));
+  expect(entry.value).toBe(kept.reduce((sum, face) => sum + face, 0));
+  expect(reported).toBe(entry.value);
+
+  if (!kept.includes(dropped)) {
+    expect(
+      after.get(dropped)!,
+      `dropped face ${dropped} should not lose chance`,
+    ).toBeGreaterThanOrEqual(before.get(dropped)! - 0.001);
+  }
+
+  const uniqueKept = [...new Set(kept)];
+  if (uniqueKept.length === 1) {
+    expect(after.get(uniqueKept[0])!).toBeLessThan(before.get(uniqueKept[0])!);
+    return;
+  }
+
+  expect(changedFaceCount(before, after)).toBeGreaterThan(3);
 });

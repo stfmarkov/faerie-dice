@@ -4,6 +4,7 @@ import {
   selectAggregation,
   selectDie,
   selectMode,
+  setDicePerRoll,
   setTarget,
 } from './helpers';
 
@@ -74,6 +75,28 @@ test('sum target splits 2d6 around seven', async ({ page }) => {
     await expect(bars.nth(index)).toHaveClass(/weight-low/);
   }
   for (let index = 5; index < 11; index++) {
+    await expect(bars.nth(index)).toHaveClass(/weight-high/);
+  }
+});
+
+test('4d6 drop lowest target splits around twelve', async ({ page }) => {
+  await page.goto('/');
+  await selectMode(page, 'Fair');
+  await selectDie(page, 'd6');
+  await selectAggregation(page, 'Drop lowest');
+  await setDicePerRoll(page, 4);
+  await openProbability(page);
+  await setTarget(page, 12);
+
+  await expect(page.locator('#target-under')).toHaveText('Under 38.349%');
+  await expect(page.locator('#target-over')).toHaveText('Over 61.651%');
+
+  const bars = page.locator('#aggregated-distribution li');
+  await expect(bars).toHaveCount(16);
+  for (let index = 0; index < 9; index++) {
+    await expect(bars.nth(index)).toHaveClass(/weight-low/);
+  }
+  for (let index = 9; index < 16; index++) {
     await expect(bars.nth(index)).toHaveClass(/weight-high/);
   }
 });
