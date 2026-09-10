@@ -6,8 +6,7 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="How fair(ish) dice picks faces in Fair, Fairish, and Average modes.">
-  <title>How the dice actually work · fair(ish) dice</title>
+  {{template "seo" .}}
   <script>
     try {
       var theme = localStorage.getItem('fair-ish-dice-theme') || localStorage.getItem('faerie-dice-theme');
@@ -43,13 +42,33 @@
   </header>
 
   <article class="explain">
-    <h1>How the dice actually work</h1>
+    <h1>Fair dice, and two that aren't</h1>
 
     <p>
-      You pick how honest the die is. Fair is honest. The other two are not, on purpose.
+      A fair die has the same chance on every face. That is Fair mode here.
+    </p>
+    <p>
+      This site is a roller. The other two modes are not fair, on purpose.
+      <a href="/">Go roll</a> if that is all you came for.
     </p>
     <p>
       Look at the probability engine while you roll. The bars are the live chances.
+    </p>
+
+    <h2>For DMs and designers</h2>
+    <p>
+      Average is how you check the math before the table does. The bars already are the
+      curve. Put a target in and you see whether that DC, trap, or breath weapon kills the
+      party or does nothing.
+    </p>
+    <p>
+      The probability engine is the number you write down. Advantage on a d20. An 8d6
+      fireball. 4d6 drop lowest for ability scores. Same graphs if you are balancing a dice
+      pool for a game you are making.
+    </p>
+    <p>
+      Fairish is for a short session that should not be all snake eyes. It remembers what
+      already came up and leans the other way.
     </p>
 
     <h2>Fair</h2>
@@ -103,9 +122,6 @@
     </p>
 
     <h2>Average</h2>
-    <p>
-      This one is for DMs and designers.
-    </p>
     <p>
       Each reported face is the rounded mean of N independent fair rolls. Curve rolls is N.
       Default is 2. Two fair d20s that come up 3 and 18 report 11. A 1 only happens when the

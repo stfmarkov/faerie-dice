@@ -12,6 +12,12 @@ test('fairish roll lowers the face and boosts the opposite group', async ({ page
 
   await expect(page.getByRole('img', { name: 'fair(ish) dice' })).toBeVisible();
   await expect(page.locator('.brand-name')).toBeVisible();
+  await expect(page).toHaveTitle('fair(ish) dice · roller for DMs and game designers');
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+    'content',
+    'Roll fair dice, or Fairish dice that remember the session. Average and the probability engine help DMs and designers check encounters and dice pools.',
+  );
+  await expect(page.getByRole('heading', { name: 'For DMs and designers' })).toHaveCount(0);
   await expect(page.locator('#result-value')).toHaveText('—');
   await expect(page.locator('#mode-trigger')).toHaveText('Fairish');
 

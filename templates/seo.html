@@ -1,0 +1,17 @@
+{{define "seo"}}
+  <meta name="description" content="{{.Description}}">
+  <title>{{.Title}}</title>
+  {{if .Canonical}}
+  <link rel="canonical" href="{{.Canonical}}">
+  <meta property="og:url" content="{{.Canonical}}">
+  {{end}}
+  <meta property="og:title" content="{{.Title}}">
+  <meta property="og:description" content="{{.Description}}">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="{{.Title}}">
+  <meta name="twitter:description" content="{{.Description}}">
+  {{if .JSONLD}}
+  <script type="application/ld+json">{{.JSONLD}}</script>
+  {{end}}
+{{end}}

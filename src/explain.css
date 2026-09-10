@@ -44,6 +44,14 @@
   margin-top: var(--space-xl);
 }
 
+.explain a {
+  color: var(--primary);
+}
+
+.explain a:hover {
+  color: var(--primary-hover);
+}
+
 .explain-back a {
   color: var(--primary);
   text-decoration: none;

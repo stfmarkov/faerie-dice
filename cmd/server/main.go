@@ -22,6 +22,11 @@ type pageData struct {
 	Script             string
 	FeedbackScript     string
 	PreloadFonts       []string
+	Origin             string
+	Title              string
+	Description        string
+	Canonical          string
+	JSONLD             template.JS
 }
 
 type manifestChunk struct {
@@ -58,6 +63,8 @@ func main() {
 	if port == "" {
 		port = "8888"
 	}
+	// PUBLIC_ORIGIN is the public site URL with no path, e.g. https://example.com.
+	// It is used for canonical tags, Open Graph URLs, robots.txt, and sitemap.xml.
 	addr := ":" + port
 
 	assets, err := loadViteAssets("dist/.vite/manifest.json")
@@ -65,8 +72,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to load Vite manifest: %v\nrun: npm run build\n", err)
 		os.Exit(1)
 	}
+	assets.Origin = loadPublicOrigin()
 
-	tmpl, err := template.ParseFiles("templates/index.html", "templates/history.html", "templates/explain.html", "templates/feedback.html")
+	tmpl, err := template.ParseFiles(
+		"templates/seo.html",
+		"templates/index.html",
+		"templates/history.html",
+		"templates/explain.html",
+		"templates/feedback.html",
+	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to parse templates: %v\n", err)
 		os.Exit(1)
@@ -79,25 +93,30 @@ func main() {
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", immutableAssets(http.FileServer(http.Dir("dist/assets")))))
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := tmpl.ExecuteTemplate(w, "index.html", assets); err != nil {
+		page := assets.forPage(homeTitle, homeDescription, "/", true)
+		if err := tmpl.ExecuteTemplate(w, "index.html", page); err != nil {
 			log.Printf("template error: %v", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 		}
 	})
 	mux.HandleFunc("GET /explain", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := tmpl.ExecuteTemplate(w, "explain.html", assets); err != nil {
+		page := assets.forPage(explainTitle, explainDescription, "/explain", false)
+		if err := tmpl.ExecuteTemplate(w, "explain.html", page); err != nil {
 			log.Printf("template error: %v", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 		}
 	})
 	mux.HandleFunc("GET /feedback", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := tmpl.ExecuteTemplate(w, "feedback.html", assets); err != nil {
+		page := assets.forPage(feedbackTitle, feedbackDescription, "/feedback", false)
+		if err := tmpl.ExecuteTemplate(w, "feedback.html", page); err != nil {
 			log.Printf("template error: %v", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 		}
 	})
+	mux.HandleFunc("GET /sitemap.xml", handleSitemap(assets.Origin))
+	mux.HandleFunc("GET /robots.txt", handleRobots(assets.Origin))
 	mux.HandleFunc("POST /feedback", feedback.handlePost)
 	mux.HandleFunc("POST /history", func(w http.ResponseWriter, r *http.Request) {
 		rolls, err := parseHistoryPayload(r)
