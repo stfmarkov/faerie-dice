@@ -174,11 +174,17 @@ import './style.css'
     average: rollAverage,
   };
 
+  const pickModeMeta: Record<PickMode, { label: string; graphSuffix: string }> = {
+    fair: { label: 'fair', graphSuffix: '' },
+    weighted: { label: 'fairish', graphSuffix: ' (fairish)' },
+    average: { label: 'average', graphSuffix: ' (average)' },
+  };
+
+  const isPickMode = (value: unknown): value is PickMode =>
+    typeof value === 'string' && value in pickModeMeta;
+
   const rollDice = (diceType: DiceType, mode: PickMode) => {
-    if (!diceModes[mode]) {
-      return rollFair(diceType);
-    }
-    return diceModes[mode](diceType);
+    return diceModes[mode]?.(diceType) ?? rollFair(diceType);
   }
 
   const getFaceChances = (diceType: DiceType) => {
@@ -188,15 +194,7 @@ import './style.css'
     });
   }
 
-  const pickModeLabel = (mode: PickMode) => {
-    if (mode === 'weighted') {
-      return 'fairish';
-    }
-    if (!diceModes[mode]) {
-      return 'fair';
-    }
-    return mode;
-  }
+  const pickModeLabel = (mode: PickMode) => pickModeMeta[mode].label;
 
   const formatChance = (chance: number) => `${chance.toFixed(3)}%`;
 
@@ -208,8 +206,67 @@ import './style.css'
 
   type ResultMode = 'advantage' | 'disadvantage' | 'sum' | 'drop-lowest' | 'drop-highest';
 
-  const isDropMode = (mode: ResultMode | null): mode is 'drop-lowest' | 'drop-highest' =>
-    mode === 'drop-lowest' || mode === 'drop-highest';
+  type ChanceEntry = { value: number, chance: number };
+
+  const withoutOne = (faces: number[], dropped: number) => {
+    const index = faces.indexOf(dropped);
+    return faces.filter((_, faceIndex) => faceIndex !== index);
+  };
+
+  type Aggregation = {
+    label: string;
+    configLabel: string;
+    graphLabel: string;
+    historyDetail: (faces: number[]) => string;
+    keptFaces: (faces: number[]) => number[];
+    rememberKeptOnly: boolean;
+  };
+
+  const aggregations: Record<ResultMode, Aggregation> = {
+    advantage: {
+      label: 'Advantage',
+      configLabel: 'advantage',
+      graphLabel: 'Advantage distribution',
+      historyDetail: faces => faces.join(', '),
+      keptFaces: faces => [Math.max(...faces)],
+      rememberKeptOnly: true,
+    },
+    disadvantage: {
+      label: 'Disadvantage',
+      configLabel: 'disadvantage',
+      graphLabel: 'Disadvantage distribution',
+      historyDetail: faces => faces.join(', '),
+      keptFaces: faces => [Math.min(...faces)],
+      rememberKeptOnly: true,
+    },
+    sum: {
+      label: 'Sum',
+      configLabel: 'sum',
+      graphLabel: 'Sum distribution',
+      historyDetail: faces => `sum of ${faces.join(', ')}`,
+      keptFaces: faces => faces,
+      rememberKeptOnly: false,
+    },
+    'drop-lowest': {
+      label: 'Drop lowest',
+      configLabel: 'drop lowest',
+      graphLabel: 'Drop lowest distribution',
+      historyDetail: faces => `drop lowest of ${faces.join(', ')}`,
+      keptFaces: faces => withoutOne(faces, Math.min(...faces)),
+      rememberKeptOnly: true,
+    },
+    'drop-highest': {
+      label: 'Drop highest',
+      configLabel: 'drop highest',
+      graphLabel: 'Drop highest distribution',
+      historyDetail: faces => `drop highest of ${faces.join(', ')}`,
+      keptFaces: faces => withoutOne(faces, Math.max(...faces)),
+      rememberKeptOnly: true,
+    },
+  };
+
+  const isResultMode = (value: unknown): value is ResultMode =>
+    typeof value === 'string' && value in aggregations;
 
   let selectedDice = diceTypes[5]; // d20
   let lastRolls: number[] = [];
@@ -694,18 +751,13 @@ import './style.css'
       && diceTypes.some(die => die.name === record.selectedDie)
       ? record.selectedDie
       : defaults.selectedDie;
-    const nextPick = record.pickMode === 'fair' || record.pickMode === 'weighted' || record.pickMode === 'average'
-      ? record.pickMode
-      : defaults.pickMode;
-    const nextResult = record.resultMode === 'advantage'
-      || record.resultMode === 'disadvantage'
-      || record.resultMode === 'sum'
-      || record.resultMode === 'drop-lowest'
-      || record.resultMode === 'drop-highest'
-      ? record.resultMode
-      : record.resultMode === null
-        ? null
-        : defaults.resultMode;
+    const nextPick = isPickMode(record.pickMode) ? record.pickMode : defaults.pickMode;
+    let nextResult = defaults.resultMode;
+    if (record.resultMode === null) {
+      nextResult = null;
+    } else if (isResultMode(record.resultMode)) {
+      nextResult = record.resultMode;
+    }
 
     const clamp = (value: unknown, min: number, max: number, fallback: number) => {
       const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
@@ -791,59 +843,6 @@ import './style.css'
     value: number;
   };
 
-  const withoutOne = (faces: number[], dropped: number) => {
-    const index = faces.indexOf(dropped);
-    return faces.filter((_, faceIndex) => faceIndex !== index);
-  };
-
-  const keptFaces = (faces: number[], mode: ResultMode) => {
-    if (mode === 'advantage') {
-      return [Math.max(...faces)];
-    }
-    if (mode === 'disadvantage') {
-      return [Math.min(...faces)];
-    }
-    if (mode === 'sum') {
-      return faces;
-    }
-    if (mode === 'drop-lowest') {
-      return withoutOne(faces, Math.min(...faces));
-    }
-    return withoutOne(faces, Math.max(...faces));
-  };
-
-  const historyDetailFor = (group: RollGroup, mode: ResultMode | null) => {
-    if (mode === 'advantage' || mode === 'disadvantage') {
-      return group.faces.join(', ');
-    }
-    if (mode === 'sum') {
-      return `sum of ${group.faces.join(', ')}`;
-    }
-    if (mode === 'drop-lowest') {
-      return `drop lowest of ${group.faces.join(', ')}`;
-    }
-    if (mode === 'drop-highest') {
-      return `drop highest of ${group.faces.join(', ')}`;
-    }
-    return undefined;
-  };
-
-  const aggregationLabel = (mode: ResultMode) => {
-    if (mode === 'advantage') {
-      return 'Advantage';
-    }
-    if (mode === 'disadvantage') {
-      return 'Disadvantage';
-    }
-    if (mode === 'sum') {
-      return 'Sum';
-    }
-    if (mode === 'drop-lowest') {
-      return 'Drop lowest';
-    }
-    return 'Drop highest';
-  };
-
   const formatRollResult = (groups: RollGroup[], mode: ResultMode | null, picking: PickMode) => {
     const modeLabel = pickModeLabel(picking);
     const dieName = selectedDice.name.toUpperCase();
@@ -861,7 +860,7 @@ import './style.css'
 
       return {
         value: groups.length === 1 ? String(groups[0].value) : `${groups.length}×`,
-        meta: `${formula}: ${rollsText} → <span class="mode">${aggregationLabel(mode)} (${modeLabel})</span>`,
+        meta: `${formula}: ${rollsText} → <span class="mode">${aggregations[mode].label} (${modeLabel})</span>`,
         reported,
       };
     }
@@ -895,18 +894,10 @@ import './style.css'
     if (resultMode) {
       const rolls = getRollCount();
       const dice = getDicePerRoll();
-      const label = resultMode === 'advantage'
-        ? 'advantage'
-        : resultMode === 'disadvantage'
-          ? 'disadvantage'
-          : resultMode === 'sum'
-            ? 'sum'
-            : resultMode === 'drop-lowest'
-              ? 'drop lowest'
-              : 'drop highest';
+      const { configLabel } = aggregations[resultMode];
       probabilityConfigEl.textContent = rolls === 1
-        ? `Current config: ${dice}${die} ${label}`
-        : `Current config: ${rolls}× ${dice}${die} ${label}`;
+        ? `Current config: ${dice}${die} ${configLabel}`
+        : `Current config: ${rolls}× ${dice}${die} ${configLabel}`;
       return;
     }
     probabilityConfigEl.textContent = `Current config: ${getRollCount()}${die}`;
@@ -965,33 +956,12 @@ import './style.css'
       return;
     }
 
-    const distribution =
-      resultMode === 'sum'
-        ? sumProbabilityDistribution()
-        : resultMode === 'advantage'
-          ? advantageProbabilityDistribution()
-          : resultMode === 'disadvantage'
-            ? disadvantageProbabilityDistribution()
-            : dropKeepSumProbabilityDistribution(resultMode === 'drop-highest');
-
-    const labels: Record<ResultMode, string> = {
-      sum: 'Sum distribution',
-      advantage: 'Advantage distribution',
-      disadvantage: 'Disadvantage distribution',
-      'drop-lowest': 'Drop lowest distribution',
-      'drop-highest': 'Drop highest distribution',
-    };
-
-    const modeSuffix =
-      pickMode === 'weighted'
-        ? ' (fairish)'
-        : pickMode === 'average'
-          ? ' (average)'
-          : '';
+    const distribution = aggregatedChanceByMode[resultMode]();
+    const title = `${aggregations[resultMode].graphLabel}${pickModeMeta[pickMode].graphSuffix}`;
 
     aggregatedGraphEl.hidden = false;
-    aggregatedDistributionLabelEl.textContent = `${labels[resultMode]}${modeSuffix}`;
-    aggregatedGraphEl.setAttribute('aria-label', `${labels[resultMode]}${modeSuffix}`);
+    aggregatedDistributionLabelEl.textContent = title;
+    aggregatedGraphEl.setAttribute('aria-label', title);
 
     if (distribution.length === 0) {
       aggregatedDistributionEl.innerHTML = '';
@@ -1079,13 +1049,16 @@ import './style.css'
   const getPickFaceProbabilities = () => {
     const sides = selectedDice.sides;
     let raw: number[];
-
-    if (pickMode === 'average') {
-      raw = averageCurveFaceChances(sides).map(face => face.chance / 100);
-    } else if (pickMode === 'weighted') {
-      raw = getFaceChances(selectedDice).map(face => face.chance / 100);
-    } else {
-      raw = Array.from({ length: sides }, () => 1 / sides);
+    switch (pickMode) {
+      case 'average':
+        raw = averageCurveFaceChances(sides).map(face => face.chance / 100);
+        break;
+      case 'weighted':
+        raw = getFaceChances(selectedDice).map(face => face.chance / 100);
+        break;
+      case 'fair':
+        raw = Array.from({ length: sides }, () => 1 / sides);
+        break;
     }
 
     const total = raw.reduce((sum, chance) => sum + chance, 0);
@@ -1256,7 +1229,10 @@ import './style.css'
       }
       const pEqual = faceProb[face - 1];
       const pRest = pRemaining - pEqual;
-      const pThis = pRemaining <= 0 ? 0 : (pRest <= 1e-15 ? 1 : pEqual / pRemaining);
+      let pThis = 0;
+      if (pRemaining > 0) {
+        pThis = pRest <= 1e-15 ? 1 : pEqual / pRemaining;
+      }
 
       const nextContinuing: Float64Array[] = Array.from({ length: keep }, () => new Float64Array(0));
 
@@ -1311,22 +1287,22 @@ import './style.css'
     return distribution;
   };
 
+  const aggregatedChanceByMode: Record<ResultMode, () => ChanceEntry[]> = {
+    sum: sumProbabilityDistribution,
+    advantage: advantageProbabilityDistribution,
+    disadvantage: disadvantageProbabilityDistribution,
+    'drop-lowest': () => dropKeepSumProbabilityDistribution(false),
+    'drop-highest': () => dropKeepSumProbabilityDistribution(true),
+  };
+
   const getReportedDistribution = () => {
-    if (resultMode === 'sum') {
-      return sumProbabilityDistribution();
+    if (resultMode) {
+      return aggregatedChanceByMode[resultMode]();
     }
-    if (resultMode === 'advantage') {
-      return advantageProbabilityDistribution();
+    if (pickMode === 'average') {
+      return averageCurveFaceChances(selectedDice.sides);
     }
-    if (resultMode === 'disadvantage') {
-      return disadvantageProbabilityDistribution();
-    }
-    if (isDropMode(resultMode)) {
-      return dropKeepSumProbabilityDistribution(resultMode === 'drop-highest');
-    }
-    return pickMode === 'average'
-      ? averageCurveFaceChances(selectedDice.sides)
-      : getFaceChances(selectedDice);
+    return getFaceChances(selectedDice);
   };
 
   const renderTargetChance = () => {
@@ -1398,21 +1374,25 @@ import './style.css'
     renderWeights();
     renderAggregatedDistribution();
 
-    if (next === 'weighted') {
-      setResultDisplay(
-        resultValueEl.textContent || '—',
-        'Fairish picking on — rolls use and update face chances.',
-      );
-    } else if (next === 'average') {
-      setResultDisplay(
-        resultValueEl.textContent || '—',
-        `Average curve on — each result is the mean of ${averageCurveRolls} fair rolls (extremes rare, middle common).`,
-      );
-    } else {
-      setResultDisplay(
-        resultValueEl.textContent || '—',
-        'Fair picking — fair rolls, weights stay frozen.',
-      );
+    switch (next) {
+      case 'weighted':
+        setResultDisplay(
+          resultValueEl.textContent || '—',
+          'Fairish picking on — rolls use and update face chances.',
+        );
+        break;
+      case 'average':
+        setResultDisplay(
+          resultValueEl.textContent || '—',
+          `Average curve on — each result is the mean of ${averageCurveRolls} fair rolls (extremes rare, middle common).`,
+        );
+        break;
+      case 'fair':
+        setResultDisplay(
+          resultValueEl.textContent || '—',
+          'Fair picking — fair rolls, weights stay frozen.',
+        );
+        break;
     }
     persistState();
   };
@@ -1420,7 +1400,7 @@ import './style.css'
   const modeListbox = createListbox(
     document.querySelector<HTMLElement>('#mode-listbox-root')!,
     (value) => {
-      if (value === 'weighted' || value === 'average' || value === 'fair') {
+      if (isPickMode(value)) {
         setPickMode(value);
       }
     },
@@ -1429,7 +1409,7 @@ import './style.css'
   const aggregationListbox = createListbox(
     document.querySelector<HTMLElement>('#aggregation-listbox-root')!,
     (value) => {
-      resultMode = value === '' ? null : value as ResultMode;
+      resultMode = isResultMode(value) ? value : null;
       renderResultModeControls();
       renderProbabilityConfig();
       renderAggregatedDistribution();
@@ -1500,21 +1480,15 @@ import './style.css'
     if (resultMode) {
       const dicePerRoll = getDicePerRoll();
       setDicePerRoll(dicePerRoll);
-      const rememberKeptOnly =
-        pickMode === 'weighted' &&
-        (resultMode === 'advantage' || resultMode === 'disadvantage' || isDropMode(resultMode));
+      const aggregation = aggregations[resultMode];
+      const rememberKeptOnly = pickMode === 'weighted' && aggregation.rememberKeptOnly;
       for (let rollIndex = 0; rollIndex < rollCount; rollIndex++) {
         const beforePool = rememberKeptOnly ? snapshotModifiers(selectedDice) : null;
         const faces = Array.from({ length: dicePerRoll }, () =>
           rollDice(selectedDice, pickMode),
         );
-        const kept = keptFaces(faces, resultMode);
-        const value =
-          resultMode === 'advantage'
-            ? Math.max(...faces)
-            : resultMode === 'disadvantage'
-              ? Math.min(...faces)
-              : totalRolls(kept);
+        const kept = aggregation.keptFaces(faces);
+        const value = totalRolls(kept);
         if (beforePool !== null) {
           restoreModifiers(selectedDice, beforePool);
           for (const face of kept) {
@@ -1536,7 +1510,7 @@ import './style.css'
     recordHistory(groups.map(group => ({
       die: selectedDice.name,
       value: group.value,
-      detail: historyDetailFor(group, resultMode),
+      detail: resultMode ? aggregations[resultMode].historyDetail(group.faces) : undefined,
     })));
     persistState();
     setResultDisplay(value, meta);
