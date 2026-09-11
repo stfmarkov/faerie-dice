@@ -64,9 +64,15 @@ export async function selectAggregation(
   page: Page,
   aggregation: 'None' | 'Advantage' | 'Disadvantage' | 'Sum' | 'Drop lowest' | 'Drop highest',
 ) {
+  const optionLabel =
+    aggregation === 'Drop lowest'
+      ? 'Sum: Drop lowest'
+      : aggregation === 'Drop highest'
+        ? 'Sum: Drop highest'
+        : aggregation;
   await page.getByRole('button', { name: /Aggregation/ }).click();
-  await page.getByRole('option', { name: aggregation, exact: true }).click();
-  await expect(page.locator('#aggregation-trigger')).toHaveText(aggregation);
+  await page.getByRole('option', { name: optionLabel, exact: true }).click();
+  await expect(page.locator('#aggregation-trigger')).toHaveText(optionLabel);
 }
 
 export type HistoryRoll = {

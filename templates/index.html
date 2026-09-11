@@ -95,15 +95,6 @@
       <section class="tray">
         <div class="tray-grid">
           <div class="tray-group">
-            <div class="control-block">
-              <label class="control-label" for="number-of-rolls">Number of rolls</label>
-              <div class="stepper">
-                <button type="button" id="rolls-dec" class="stepper-btn" aria-label="Decrease rolls">−</button>
-                <input type="number" id="number-of-rolls" min="1" max="100" value="1" />
-                <button type="button" id="rolls-inc" class="stepper-btn" aria-label="Increase rolls">+</button>
-              </div>
-            </div>
-
             <div class="control-block" id="dice-per-roll-block" hidden>
               <label class="control-label" for="dice-per-roll">Dice per roll</label>
               <div class="stepper">
@@ -143,8 +134,8 @@
                   <li role="option" data-value="advantage" aria-selected="false" tabindex="-1">Advantage</li>
                   <li role="option" data-value="disadvantage" aria-selected="false" tabindex="-1">Disadvantage</li>
                   <li role="option" data-value="sum" aria-selected="false" tabindex="-1">Sum</li>
-                  <li role="option" data-value="drop-lowest" aria-selected="false" tabindex="-1">Drop lowest</li>
-                  <li role="option" data-value="drop-highest" aria-selected="false" tabindex="-1">Drop highest</li>
+                  <li role="option" data-value="drop-lowest" aria-selected="false" tabindex="-1">Sum: Drop lowest</li>
+                  <li role="option" data-value="drop-highest" aria-selected="false" tabindex="-1">Sum: Drop highest</li>
                 </ul>
               </div>
             </div>
@@ -152,7 +143,13 @@
         </div>
 
         <div class="tray-actions">
-          <button type="button" id="roll-btn">Roll</button>
+          <div class="roll-strip" role="group" aria-label="Roll">
+            <label class="visually-hidden" for="number-of-rolls">Number of rolls</label>
+            <input type="number" id="number-of-rolls" class="visually-hidden" min="1" max="100" value="1" />
+            <button type="button" id="rolls-dec" class="roll-step" aria-label="Decrease rolls">−</button>
+            <button type="button" id="roll-btn">Roll</button>
+            <button type="button" id="rolls-inc" class="roll-step" aria-label="Increase rolls">+</button>
+          </div>
         </div>
       </section>
     </main>

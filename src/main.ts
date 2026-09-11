@@ -580,6 +580,8 @@ import './style.css'
 
   const setRollCount = (value: number) => {
     rollsInput.value = String(Math.min(100, Math.max(1, value)));
+    const count = getRollCount();
+    rollBtn.textContent = count === 1 ? 'Roll' : `Roll ×${count}`;
   };
 
   const usesDicePerRoll = () => resultMode !== null;
@@ -1668,6 +1670,7 @@ import './style.css'
   const main = () => {
     applyTheme(readStoredTheme());
     loadPersistedState();
+    setRollCount(getRollCount());
     renderStageDie();
     renderDieSelect();
     renderModeControls();

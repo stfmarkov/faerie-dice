@@ -114,6 +114,6 @@ test('drop lowest settings survive reload', async ({ page }) => {
 
   await page.reload();
 
-  await expect(page.locator('#aggregation-trigger')).toHaveText('Drop lowest');
+  await expect(page.locator('#aggregation-trigger')).toHaveText('Sum: Drop lowest');
   await expect(page.locator('#dice-per-roll')).toHaveValue('4');
 });
