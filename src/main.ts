@@ -248,18 +248,18 @@ import './style.css'
       rememberKeptOnly: false,
     },
     'drop-lowest': {
-      label: 'Drop lowest',
-      configLabel: 'drop lowest',
-      graphLabel: 'Drop lowest distribution',
-      historyDetail: faces => `drop lowest of ${faces.join(', ')}`,
+      label: 'Drop low',
+      configLabel: 'drop low',
+      graphLabel: 'Drop low distribution',
+      historyDetail: faces => `drop low of ${faces.join(', ')}`,
       keptFaces: faces => withoutOne(faces, Math.min(...faces)),
       rememberKeptOnly: true,
     },
     'drop-highest': {
-      label: 'Drop highest',
-      configLabel: 'drop highest',
-      graphLabel: 'Drop highest distribution',
-      historyDetail: faces => `drop highest of ${faces.join(', ')}`,
+      label: 'Drop top',
+      configLabel: 'drop top',
+      graphLabel: 'Drop top distribution',
+      historyDetail: faces => `drop top of ${faces.join(', ')}`,
       keptFaces: faces => withoutOne(faces, Math.max(...faces)),
       rememberKeptOnly: true,
     },
@@ -287,6 +287,9 @@ import './style.css'
   const dicePerRollInput = document.querySelector<HTMLInputElement>('#dice-per-roll')!;
   const dicePerRollDecBtn = document.querySelector<HTMLButtonElement>('#dice-per-roll-dec')!;
   const dicePerRollIncBtn = document.querySelector<HTMLButtonElement>('#dice-per-roll-inc')!;
+  const modifierInput = document.querySelector<HTMLInputElement>('#roll-modifier')!;
+  const modifierDecBtn = document.querySelector<HTMLButtonElement>('#modifier-dec')!;
+  const modifierIncBtn = document.querySelector<HTMLButtonElement>('#modifier-inc')!;
   const rollBtn = document.querySelector<HTMLButtonElement>('#roll-btn')!;
   const probabilityRollBtn = document.querySelector<HTMLButtonElement>('#probability-roll-btn')!;
   const resetBtn = document.querySelector<HTMLButtonElement>('#reset-btn')!;
@@ -598,6 +601,25 @@ import './style.css'
     dicePerRollInput.value = String(Math.min(100, Math.max(2, value)));
   };
 
+  const getRollModifier = () => {
+    const value = Number.parseInt(modifierInput.value, 10);
+    if (!Number.isFinite(value)) {
+      return 0;
+    }
+    return Math.min(100, Math.max(-100, value));
+  };
+
+  const setRollModifier = (value: number) => {
+    modifierInput.value = String(Math.min(100, Math.max(-100, Math.round(value))));
+  };
+
+  const formatModifier = (value: number) => {
+    if (value === 0) {
+      return '';
+    }
+    return value > 0 ? `+${value}` : String(value);
+  };
+
   const getTargetNumber = () => {
     const raw = targetInput.value.trim();
     if (raw === '') {
@@ -633,6 +655,7 @@ import './style.css'
     resultMode: ResultMode | null;
     rollCount: number;
     dicePerRoll: number;
+    modifier: number;
     weightedDropPercent: number;
     averageCurveRolls: number;
   };
@@ -650,6 +673,7 @@ import './style.css'
     resultMode: null,
     rollCount: 1,
     dicePerRoll: 2,
+    modifier: 0,
     weightedDropPercent: 20,
     averageCurveRolls: 2,
   });
@@ -672,6 +696,7 @@ import './style.css'
         resultMode,
         rollCount: getRollCount(),
         dicePerRoll: getDicePerRoll(),
+        modifier: getRollModifier(),
         weightedDropPercent,
         averageCurveRolls,
       },
@@ -730,7 +755,7 @@ import './style.css'
       if (!Number.isFinite(value)) {
         continue;
       }
-      if (!Number.isInteger(value) || value < 1 || value > die.sides * 100) {
+      if (!Number.isInteger(value) || value < -10000 || value > 20000) {
         continue;
       }
       const entry: HistoryRoll = { die: record.die, value };      if (typeof record.detail === 'string' && record.detail.length > 0) {
@@ -775,6 +800,7 @@ import './style.css'
       resultMode: nextResult,
       rollCount: clamp(record.rollCount, 1, 100, defaults.rollCount),
       dicePerRoll: clamp(record.dicePerRoll, 2, 100, defaults.dicePerRoll),
+      modifier: clamp(record.modifier, -100, 100, defaults.modifier),
       weightedDropPercent: clamp(record.weightedDropPercent, 0, 100, defaults.weightedDropPercent),
       averageCurveRolls: clamp(record.averageCurveRolls, 2, 20, defaults.averageCurveRolls),
     };
@@ -809,6 +835,7 @@ import './style.css'
       weightedDropPercent = settings.weightedDropPercent;
       setRollCount(settings.rollCount);
       setDicePerRoll(settings.dicePerRoll);
+      setRollModifier(settings.modifier);
       setAverageCurveRolls(settings.averageCurveRolls);
     } catch {
       // Ignore corrupt or blocked storage; keep in-memory defaults.
@@ -848,12 +875,13 @@ import './style.css'
   const formatRollResult = (groups: RollGroup[], mode: ResultMode | null, picking: PickMode) => {
     const modeLabel = pickModeLabel(picking);
     const dieName = selectedDice.name.toUpperCase();
+    const modifierText = formatModifier(getRollModifier());
 
     if (mode) {
       const dicePerRoll = groups[0]?.faces.length ?? getDicePerRoll();
       const formula = groups.length === 1
-        ? `${dicePerRoll}${dieName}`
-        : `${groups.length}× ${dicePerRoll}${dieName}`;
+        ? `${dicePerRoll}${dieName}${modifierText}`
+        : `${groups.length}× ${dicePerRoll}${dieName}${modifierText}`;
       const reported = groups.map(group => group.value);
       const rollsText = groups.map(group => {
         const facesText = group.faces.join(', ');
@@ -867,23 +895,23 @@ import './style.css'
       };
     }
 
-    const faces = groups.flatMap(group => group.faces);
-    const rollsText = faces.join(', ');
-    const count = faces.length;
-    const formula = `${count}${dieName}`;
+    const reported = groups.map(group => group.value);
+    const rollsText = reported.join(', ');
+    const count = reported.length;
+    const formula = `${count}${dieName}${modifierText}`;
 
     if (count === 1) {
       return {
-        value: String(faces[0]),
+        value: String(reported[0]),
         meta: `${formula} <span class="mode">(${modeLabel})</span>`,
-        reported: faces,
+        reported,
       };
     }
 
     return {
       value: `${count}×`,
       meta: `${formula}: ${rollsText} <span class="mode">(${modeLabel})</span>`,
-      reported: faces,
+      reported,
     };
   };
 
@@ -893,16 +921,17 @@ import './style.css'
 
   const renderProbabilityConfig = () => {
     const die = selectedDice.name;
+    const suffix = formatModifier(getRollModifier());
     if (resultMode) {
       const rolls = getRollCount();
       const dice = getDicePerRoll();
       const { configLabel } = aggregations[resultMode];
       probabilityConfigEl.textContent = rolls === 1
-        ? `Current config: ${dice}${die} ${configLabel}`
-        : `Current config: ${rolls}× ${dice}${die} ${configLabel}`;
+        ? `Current config: ${dice}${die}${suffix} ${configLabel}`
+        : `Current config: ${rolls}× ${dice}${die}${suffix} ${configLabel}`;
       return;
     }
-    probabilityConfigEl.textContent = `Current config: ${getRollCount()}${die}`;
+    probabilityConfigEl.textContent = `Current config: ${getRollCount()}${die}${suffix}`;
   };
 
   const getWeightToneClass = (chance: number, baseChance: number) => {
@@ -958,7 +987,7 @@ import './style.css'
       return;
     }
 
-    const distribution = aggregatedChanceByMode[resultMode]();
+    const distribution = getReportedDistribution();
     const title = `${aggregations[resultMode].graphLabel}${pickModeMeta[pickMode].graphSuffix}`;
 
     aggregatedGraphEl.hidden = false;
@@ -1046,7 +1075,7 @@ import './style.css'
   // Weighted uses live weights (i.i.d. snapshot of current odds).
   // Multi-die weighted rolls still update memory between dice while picking;
   // advantage / disadvantage then keep the chance drop only on the used face,
-  // and drop lowest / highest drop chance on each kept face in the remaining sum.
+  // and drop low / drop top drop chance on each kept face in the remaining sum.
   // The graph freezes tonight's chances to answer “what do reported results look like now?”
   const getPickFaceProbabilities = () => {
     const sides = selectedDice.sides;
@@ -1297,14 +1326,22 @@ import './style.css'
     'drop-highest': () => dropKeepSumProbabilityDistribution(true),
   };
 
+  const applyModifierToDistribution = (entries: ChanceEntry[]) => {
+    const modifier = getRollModifier();
+    if (modifier === 0) {
+      return entries;
+    }
+    return entries.map(entry => ({ value: entry.value + modifier, chance: entry.chance }));
+  };
+
   const getReportedDistribution = () => {
     if (resultMode) {
-      return aggregatedChanceByMode[resultMode]();
+      return applyModifierToDistribution(aggregatedChanceByMode[resultMode]());
     }
     if (pickMode === 'average') {
-      return averageCurveFaceChances(selectedDice.sides);
+      return applyModifierToDistribution(averageCurveFaceChances(selectedDice.sides));
     }
-    return getFaceChances(selectedDice);
+    return applyModifierToDistribution(getFaceChances(selectedDice));
   };
 
   const renderTargetChance = () => {
@@ -1461,6 +1498,25 @@ import './style.css'
     persistState();
   });
 
+  const onModifierChange = () => {
+    setRollModifier(getRollModifier());
+    renderProbabilityConfig();
+    renderAggregatedDistribution();
+    persistState();
+  };
+
+  modifierDecBtn.addEventListener('click', () => {
+    setRollModifier(getRollModifier() - 1);
+    onModifierChange();
+  });
+
+  modifierIncBtn.addEventListener('click', () => {
+    setRollModifier(getRollModifier() + 1);
+    onModifierChange();
+  });
+
+  modifierInput.addEventListener('change', onModifierChange);
+
   targetDecBtn.addEventListener('click', () => {
     stepTarget(-1);
   });
@@ -1476,6 +1532,8 @@ import './style.css'
   const performRoll = () => {
     const rollCount = getRollCount();
     setRollCount(rollCount);
+    const modifier = getRollModifier();
+    setRollModifier(modifier);
 
     const groups: RollGroup[] = [];
 
@@ -1490,7 +1548,7 @@ import './style.css'
           rollDice(selectedDice, pickMode),
         );
         const kept = aggregation.keptFaces(faces);
-        const value = totalRolls(kept);
+        const value = totalRolls(kept) + modifier;
         if (beforePool !== null) {
           restoreModifiers(selectedDice, beforePool);
           for (const face of kept) {
@@ -1502,7 +1560,7 @@ import './style.css'
     } else {
       for (let rollIndex = 0; rollIndex < rollCount; rollIndex++) {
         const face = rollDice(selectedDice, pickMode);
-        groups.push({ faces: [face], value: face });
+        groups.push({ faces: [face], value: face + modifier });
       }
     }
 
@@ -1574,6 +1632,7 @@ import './style.css'
     lastReportedValues = [];
     setRollCount(settings.rollCount);
     setDicePerRoll(settings.dicePerRoll);
+    setRollModifier(settings.modifier);
     setAverageCurveRolls(settings.averageCurveRolls);
     targetInput.value = '';
     applyTheme('dark');
@@ -1671,6 +1730,7 @@ import './style.css'
     applyTheme(readStoredTheme());
     loadPersistedState();
     setRollCount(getRollCount());
+    setRollModifier(getRollModifier());
     renderStageDie();
     renderDieSelect();
     renderModeControls();

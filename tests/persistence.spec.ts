@@ -15,6 +15,7 @@ import {
   setCurveRolls,
   setDicePerRoll,
   setDropStrength,
+  setModifier,
   setNumberOfRolls,
 } from './helpers';
 
@@ -74,9 +75,9 @@ test('history entries outside the supported range are dropped', async ({ page })
     localStorage.setItem('fair-ish-dice-state', JSON.stringify({
       version: 1,
       history: [
-        { die: 'd6', value: 0 },
         { die: 'd6', value: 3.4 },
-        { die: 'd6', value: 601 },
+        { die: 'd6', value: 20001 },
+        { die: 'd6', value: -10001 },
         { die: 'd20', value: 20 },
       ],
       weights: {},
@@ -108,6 +109,7 @@ test('reload restores history, weights, and settings', async ({ page }) => {
 
   await setNumberOfRolls(page, 2);
   await selectMode(page, 'Fair');
+  await setModifier(page, 6);
 
   await page.reload();
 
@@ -119,6 +121,7 @@ test('reload restores history, weights, and settings', async ({ page }) => {
   await expect(page.locator('#aggregation-trigger')).toHaveText('Advantage');
   await expect(page.locator('#number-of-rolls')).toHaveValue('2');
   await expect(page.locator('#dice-per-roll')).toHaveValue('3');
+  await expect(page.locator('#roll-modifier')).toHaveValue('6');
   await expect(page.locator('#weighted-drop-value')).toHaveText('40%');
   await expect(page.locator('#average-curve-rolls')).toHaveValue('5');
 
@@ -219,6 +222,7 @@ test('default settings restore controls without wiping history or weights', asyn
   await selectAggregation(page, 'Sum');
   await setNumberOfRolls(page, 4);
   await setDicePerRoll(page, 3);
+  await setModifier(page, 8);
   await openSettings(page);
   await setDropStrength(page, 50);
   await setCurveRolls(page, 8);
@@ -234,6 +238,7 @@ test('default settings restore controls without wiping history or weights', asyn
   await expect(page.locator('#mode-trigger')).toHaveText('Fairish');
   await expect(page.locator('#aggregation-trigger')).toHaveText('None');
   await expect(page.locator('#number-of-rolls')).toHaveValue('1');
+  await expect(page.locator('#roll-modifier')).toHaveValue('0');
   await expect(page.locator('#weighted-drop-value')).toHaveText('20%');
   await expect(page.locator('#average-curve-rolls')).toHaveValue('2');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
@@ -244,6 +249,7 @@ test('default settings restore controls without wiping history or weights', asyn
   await expect(page.locator('#mode-trigger')).toHaveText('Fairish');
   await expect(page.locator('#aggregation-trigger')).toHaveText('None');
   await expect(page.locator('#number-of-rolls')).toHaveValue('1');
+  await expect(page.locator('#roll-modifier')).toHaveValue('0');
   await expect(page.locator('#weighted-drop-value')).toHaveText('20%');
   await expect(page.locator('#average-curve-rolls')).toHaveValue('2');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');

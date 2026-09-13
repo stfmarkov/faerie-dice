@@ -22,9 +22,9 @@ function parseFaces(
     aggregation === 'sum'
       ? detail.replace(/^sum of /, '')
       : aggregation === 'drop-lowest'
-        ? detail.replace(/^drop lowest of /, '')
+        ? detail.replace(/^drop low of /, '')
         : aggregation === 'drop-highest'
-          ? detail.replace(/^drop highest of /, '')
+          ? detail.replace(/^drop top of /, '')
           : detail;
   return text.split(', ').map(Number);
 }
@@ -149,10 +149,10 @@ test('fairish none drops chance for every landed face', async ({ page }) => {
   expect(changedFaceCount(before, after)).toBeGreaterThan(11);
 });
 
-test('fairish drop lowest drops chance only for kept faces', async ({ page }) => {
+test('fairish drop low drops chance only for kept faces', async ({ page }) => {
   await page.goto('/');
   await selectDie(page, 'd6');
-  await selectAggregation(page, 'Drop lowest');
+  await selectAggregation(page, 'Drop low');
   await setDicePerRoll(page, 4);
   await openProbability(page);
 

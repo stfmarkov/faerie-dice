@@ -16,7 +16,7 @@ async function readBarChances(page: Page, selector: string): Promise<Map<number,
 
   const chances = new Map<number, number>();
   for (const title of titles) {
-    const match = title.match(/^(\d+):\s*([\d.]+)%$/);
+    const match = title.match(/^(-?\d+):\s*([\d.]+)%$/);
     expect(match, `unexpected weight title: ${title}`).toBeTruthy();
     chances.set(Number(match![1]), Number(match![2]));
   }
@@ -62,13 +62,13 @@ export async function selectMode(page: Page, mode: 'Fair' | 'Fairish' | 'Average
 
 export async function selectAggregation(
   page: Page,
-  aggregation: 'None' | 'Advantage' | 'Disadvantage' | 'Sum' | 'Drop lowest' | 'Drop highest',
+  aggregation: 'None' | 'Advantage' | 'Disadvantage' | 'Sum' | 'Drop low' | 'Drop top',
 ) {
   const optionLabel =
-    aggregation === 'Drop lowest'
-      ? 'Sum: Drop lowest'
-      : aggregation === 'Drop highest'
-        ? 'Sum: Drop highest'
+    aggregation === 'Drop low'
+      ? 'Sum: Drop low'
+      : aggregation === 'Drop top'
+        ? 'Sum: Drop top'
         : aggregation;
   await page.getByRole('button', { name: /Aggregation/ }).click();
   await page.getByRole('option', { name: optionLabel, exact: true }).click();
@@ -82,7 +82,7 @@ export type HistoryRoll = {
 };
 
 function parseHistorySequence(sequence: string): HistoryRoll[] {
-  const pattern = /(\w+):(\d+)(?: \(([^)]+)\))?/g;
+  const pattern = /(\w+):(-?\d+)(?: \(([^)]+)\))?/g;
   return [...sequence.matchAll(pattern)].map((match) => {
     const entry: HistoryRoll = { die: match[1], value: Number(match[2]) };
     if (match[3]) {
@@ -148,6 +148,22 @@ export async function setDicePerRoll(page: Page, count: number) {
   }
 
   await expect(input).toHaveValue(String(count));
+}
+
+export async function setModifier(page: Page, value: number) {
+  const input = page.locator('#roll-modifier');
+  let current = Number(await input.inputValue());
+
+  while (current < value) {
+    await page.getByRole('button', { name: 'Increase modifier' }).click();
+    current = Number(await input.inputValue());
+  }
+  while (current > value) {
+    await page.getByRole('button', { name: 'Decrease modifier' }).click();
+    current = Number(await input.inputValue());
+  }
+
+  await expect(input).toHaveValue(String(value));
 }
 
 export async function openHistory(page: Page) {

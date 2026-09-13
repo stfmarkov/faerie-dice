@@ -2,7 +2,7 @@
 
 > fair(ish) dice is a browser dice roller for DMs and game designers. Fair mode is even odds. Fairish remembers the session. Average draws from a bell curve.
 
-fair(ish) dice supports d4 through d100. **Fairish** mode reduces a rolled face's chance (tunable drop strength) and shifts probability toward the opposite high/low half of the die. **Average** mode reports one face drawn as the mean of N fair rolls (tunable curve rolls, default 2), so extremes are rare. Rolls can be combined with advantage, disadvantage, sum, drop lowest, or drop highest. A settings drawer holds mode-specific controls. The probability engine shows single-die face chances and, when aggregation is on, the distribution of the reported result, using live weights in Fairish mode. A target number on that panel shows under/over chances, and paints the aggregated graph the same way when aggregation is on.
+fair(ish) dice supports d4 through d100. **Fairish** mode reduces a rolled face's chance (tunable drop strength) and shifts probability toward the opposite high/low half of the die. **Average** mode reports one face drawn as the mean of N fair rolls (tunable curve rolls, default 2), so extremes are rare. Rolls can be combined with advantage, disadvantage, sum, drop low, or drop top. A settings drawer holds mode-specific controls. The probability engine shows single-die face chances and, when aggregation is on, the distribution of the reported result, using live weights in Fairish mode. A target number on that panel shows under/over chances, and paints the aggregated graph the same way when aggregation is on.
 
 DMs use Average and the probability engine to check encounter DCs, traps, and dice pools. Game designers use the same graphs when balancing a system.
 

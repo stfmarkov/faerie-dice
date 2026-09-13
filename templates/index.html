@@ -76,10 +76,6 @@
 
   <div class="shell">
     <aside class="dice-tray" aria-label="Dice type">
-      <div class="dice-tray-heading">
-        <span class="dice-tray-title">Dice</span>
-        <span class="dice-tray-sub">Quick tray</span>
-      </div>
       <ul class="die-select" id="die-select"></ul>
     </aside>
 
@@ -95,6 +91,17 @@
       <section class="tray">
         <div class="tray-grid">
           <div class="tray-group">
+            <div class="control-block">
+              <label class="control-label" for="roll-modifier">Modifier</label>
+              <div class="stepper">
+                <button type="button" id="modifier-dec" class="stepper-btn"
+                  aria-label="Decrease modifier">−</button>
+                <input type="number" id="roll-modifier" min="-100" max="100" value="0" />
+                <button type="button" id="modifier-inc" class="stepper-btn"
+                  aria-label="Increase modifier">+</button>
+              </div>
+            </div>
+
             <div class="control-block" id="dice-per-roll-block" hidden>
               <label class="control-label" for="dice-per-roll">Dice per roll</label>
               <div class="stepper">
@@ -134,8 +141,8 @@
                   <li role="option" data-value="advantage" aria-selected="false" tabindex="-1">Advantage</li>
                   <li role="option" data-value="disadvantage" aria-selected="false" tabindex="-1">Disadvantage</li>
                   <li role="option" data-value="sum" aria-selected="false" tabindex="-1">Sum</li>
-                  <li role="option" data-value="drop-lowest" aria-selected="false" tabindex="-1">Sum: Drop lowest</li>
-                  <li role="option" data-value="drop-highest" aria-selected="false" tabindex="-1">Sum: Drop highest</li>
+                  <li role="option" data-value="drop-lowest" aria-selected="false" tabindex="-1">Sum: Drop low</li>
+                  <li role="option" data-value="drop-highest" aria-selected="false" tabindex="-1">Sum: Drop top</li>
                 </ul>
               </div>
             </div>

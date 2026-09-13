@@ -79,11 +79,11 @@ test('sum target splits 2d6 around seven', async ({ page }) => {
   }
 });
 
-test('4d6 drop lowest target splits around twelve', async ({ page }) => {
+test('4d6 drop low target splits around twelve', async ({ page }) => {
   await page.goto('/');
   await selectMode(page, 'Fair');
   await selectDie(page, 'd6');
-  await selectAggregation(page, 'Drop lowest');
+  await selectAggregation(page, 'Drop low');
   await setDicePerRoll(page, 4);
   await openProbability(page);
   await setTarget(page, 12);

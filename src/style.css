@@ -190,31 +190,6 @@ button {
   background: var(--surface-container);
 }
 
-.dice-tray-heading {
-  text-align: center;
-  margin-bottom: var(--space-sm);
-}
-
-.dice-tray-title {
-  display: block;
-  font-family: var(--font-display);
-  font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  color: var(--on-surface);
-}
-
-.dice-tray-sub {
-  display: block;
-  margin-top: var(--space-xs);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--on-surface-variant);
-}
-
 .die-select {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1292,10 +1267,6 @@ input[type="range"]::-moz-range-thumb {
     padding: var(--space-sm) var(--space-md);
     border-right: none;
     border-bottom: 1px solid var(--outline-variant);
-  }
-
-  .dice-tray-heading {
-    display: none;
   }
 
   .die-select {
