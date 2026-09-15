@@ -50,8 +50,8 @@
         </svg>
         <span class="topbar-btn-label">History</span>
       </button>
-      <button type="button" id="settings-toggle" class="topbar-btn settings-toggle" aria-label="Settings"
-        aria-expanded="false" aria-controls="settings-drawer">
+      <button type="button" id="settings-toggle" class="topbar-btn settings-toggle" data-action="settings-toggle"
+        aria-label="Settings" aria-expanded="false" aria-controls="settings-drawer">
         <svg class="topbar-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
             d="M4 6h8M16 6h4M4 12h4M12 12h8M4 18h10M18 18h2" />
@@ -61,8 +61,9 @@
         </svg>
         <span class="topbar-btn-label">Settings</span>
       </button>
-      <button type="button" id="probability-toggle" class="topbar-btn probability-toggle" aria-label="Probability"
-        aria-expanded="false" aria-controls="probability-drawer">
+      <button type="button" id="probability-toggle" class="topbar-btn probability-toggle"
+        data-action="probability-toggle" aria-label="Probability" aria-expanded="false"
+        aria-controls="probability-drawer">
         <svg class="topbar-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
             d="M6 18V11m6 7V6m6 12v-5" />
@@ -94,10 +95,10 @@
             <div class="control-block">
               <label class="control-label" for="roll-modifier">Modifier</label>
               <div class="stepper">
-                <button type="button" id="modifier-dec" class="stepper-btn"
+                <button type="button" id="modifier-dec" class="stepper-btn" data-action="modifier-dec"
                   aria-label="Decrease modifier">−</button>
-                <input type="number" id="roll-modifier" min="-100" max="100" value="0" />
-                <button type="button" id="modifier-inc" class="stepper-btn"
+                <input type="number" id="roll-modifier" data-action="modifier" min="-100" max="100" value="0" />
+                <button type="button" id="modifier-inc" class="stepper-btn" data-action="modifier-inc"
                   aria-label="Increase modifier">+</button>
               </div>
             </div>
@@ -105,10 +106,10 @@
             <div class="control-block" id="dice-per-roll-block" hidden>
               <label class="control-label" for="dice-per-roll">Dice per roll</label>
               <div class="stepper">
-                <button type="button" id="dice-per-roll-dec" class="stepper-btn"
+                <button type="button" id="dice-per-roll-dec" class="stepper-btn" data-action="dice-per-roll-dec"
                   aria-label="Decrease dice per roll">−</button>
-                <input type="number" id="dice-per-roll" min="2" max="100" value="2" />
-                <button type="button" id="dice-per-roll-inc" class="stepper-btn"
+                <input type="number" id="dice-per-roll" data-action="dice-per-roll" min="2" max="100" value="2" />
+                <button type="button" id="dice-per-roll-inc" class="stepper-btn" data-action="dice-per-roll-inc"
                   aria-label="Increase dice per roll">+</button>
               </div>
             </div>
@@ -152,10 +153,13 @@
         <div class="tray-actions">
           <div class="roll-strip" role="group" aria-label="Roll">
             <label class="visually-hidden" for="number-of-rolls">Number of rolls</label>
-            <input type="number" id="number-of-rolls" class="visually-hidden" min="1" max="100" value="1" />
-            <button type="button" id="rolls-dec" class="roll-step" aria-label="Decrease rolls">−</button>
-            <button type="button" id="roll-btn">Roll</button>
-            <button type="button" id="rolls-inc" class="roll-step" aria-label="Increase rolls">+</button>
+            <input type="number" id="number-of-rolls" class="visually-hidden" data-action="rolls" min="1" max="100"
+              value="1" />
+            <button type="button" id="rolls-dec" class="roll-step" data-action="rolls-dec"
+              aria-label="Decrease rolls">−</button>
+            <button type="button" id="roll-btn" data-action="roll">Roll</button>
+            <button type="button" id="rolls-inc" class="roll-step" data-action="rolls-inc"
+              aria-label="Increase rolls">+</button>
           </div>
         </div>
       </section>
@@ -169,9 +173,10 @@
           <span class="probability-current-roll" id="probability-current-roll" aria-live="polite">Current roll: —</span>
         </div>
         <div class="probability-header-actions">
-          <button type="button" id="probability-roll-btn" class="probability-roll">Roll</button>
-          <button type="button" id="reset-btn" class="secondary">Reset weights</button>
-          <button type="button" id="probability-close" class="probability-close" aria-label="Close probability engine">
+          <button type="button" id="probability-roll-btn" class="probability-roll" data-action="roll">Roll</button>
+          <button type="button" id="reset-btn" class="secondary" data-action="reset-weights">Reset weights</button>
+          <button type="button" id="probability-close" class="probability-close" data-action="probability-close"
+            aria-label="Close probability engine">
             Close
           </button>
         </div>
@@ -180,9 +185,11 @@
         <div class="control-block">
           <label class="control-label" for="target-number">Target</label>
           <div class="stepper">
-            <button type="button" id="target-dec" class="stepper-btn" aria-label="Decrease target">−</button>
-            <input type="number" id="target-number" min="1" max="10000" inputmode="numeric" />
-            <button type="button" id="target-inc" class="stepper-btn" aria-label="Increase target">+</button>
+            <button type="button" id="target-dec" class="stepper-btn" data-action="target-dec"
+              aria-label="Decrease target">−</button>
+            <input type="number" id="target-number" data-action="target" min="1" max="10000" inputmode="numeric" />
+            <button type="button" id="target-inc" class="stepper-btn" data-action="target-inc"
+              aria-label="Increase target">+</button>
           </div>
         </div>
         <p class="probability-target-chance" id="target-chance" aria-live="polite" hidden></p>
@@ -204,7 +211,8 @@
         <div class="settings-heading">
           <h2 class="control-label">Settings</h2>
         </div>
-        <button type="button" id="settings-close" class="settings-close" aria-label="Close settings">
+        <button type="button" id="settings-close" class="settings-close" data-action="settings-close"
+          aria-label="Close settings">
           Close
         </button>
       </div>
@@ -212,8 +220,8 @@
         <div class="control-block">
           <div class="settings-row">
             <label class="control-label" id="theme-label" for="theme-toggle">Light theme</label>
-            <button type="button" id="theme-toggle" class="tactile-toggle" role="switch" aria-checked="false"
-              aria-labelledby="theme-label"></button>
+            <button type="button" id="theme-toggle" class="tactile-toggle" data-action="theme-toggle" role="switch"
+              aria-checked="false" aria-labelledby="theme-label"></button>
           </div>
         </div>
         <div class="control-block">
@@ -221,8 +229,8 @@
             <label class="control-label" for="weighted-drop-slider">Drop strength</label>
             <span class="settings-slider-value" id="weighted-drop-value">20%</span>
           </div>
-          <input type="range" id="weighted-drop-slider" min="0" max="100" step="1" value="20" aria-valuemin="0"
-            aria-valuemax="100" aria-valuenow="20" aria-valuetext="20 percent" />
+          <input type="range" id="weighted-drop-slider" data-action="weighted-drop" min="0" max="100" step="1" value="20"
+            aria-valuemin="0" aria-valuemax="100" aria-valuenow="20" aria-valuetext="20 percent" />
           <p class="settings-hint">
             Fairish mode: how much the rolled face's chance drops after each roll (share of that face's base chance).
           </p>
@@ -230,10 +238,10 @@
         <div class="control-block">
           <label class="control-label" for="average-curve-rolls">Curve rolls</label>
           <div class="stepper">
-            <button type="button" id="average-curve-rolls-dec" class="stepper-btn"
+            <button type="button" id="average-curve-rolls-dec" class="stepper-btn" data-action="curve-rolls-dec"
               aria-label="Decrease curve rolls">−</button>
-            <input type="number" id="average-curve-rolls" min="2" max="20" value="2" />
-            <button type="button" id="average-curve-rolls-inc" class="stepper-btn"
+            <input type="number" id="average-curve-rolls" data-action="curve-rolls" min="2" max="20" value="2" />
+            <button type="button" id="average-curve-rolls-inc" class="stepper-btn" data-action="curve-rolls-inc"
               aria-label="Increase curve rolls">+</button>
           </div>
           <p class="settings-hint">
@@ -242,7 +250,7 @@
           </p>
         </div>
         <div class="control-block">
-          <button type="button" id="settings-default" class="secondary">Default settings</button>
+          <button type="button" id="settings-default" class="secondary" data-action="settings-default">Default settings</button>
           <p class="settings-hint">
             Restores tray and settings controls. History and face weights stay.
           </p>

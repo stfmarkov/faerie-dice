@@ -1,973 +1,429 @@
 import './style.css'
 
-(() => {
-  type Modifier = {
-    value: number;
-    modifierValue: number;
+import {
+  aggregations,
+  diceTypes,
+  getChance,
+  getFaceChances,
+  isPickMode,
+  isResultMode,
+  modifyValues,
+  pickModeLabel,
+  pickModeMeta,
+  restoreModifiers,
+  rollDice,
+  snapshotModifiers,
+  type HistoryRoll,
+  type PickMode,
+  type ResultMode,
+} from './dice';
+import { averageCurveFaceChances, getReportedDistribution } from './distribution';
+import { dieIcon } from './icons';
+import { createListbox } from './listbox';
+import { defaultSettings, HISTORY_CAP, loadPersistedState, persistState as writePersistedState } from './persist';
+
+// Share of a face's base chance removed when that face is rolled (weighted mode).
+let weightedDropPercent = 20;
+
+// Average of N fair rolls (default 2) → bell curve; middle common, extremes rare.
+let averageCurveRolls = 2;
+
+let selectedDice = diceTypes[5]; // d20
+let lastRolls: number[] = [];
+let lastReportedValues: number[] = [];
+let pickMode: PickMode = 'weighted';
+let resultMode: ResultMode | null = null;
+const rollHistory: HistoryRoll[] = [];
+
+const page = document.querySelector('body')!;
+const byId = <T extends Element>(id: string) => page.querySelector<T>(`#${CSS.escape(id)}`)!;
+
+const dieSelect = byId<HTMLUListElement>('die-select');
+const rollsInput = byId<HTMLInputElement>('number-of-rolls');
+const dicePerRollBlock = byId<HTMLElement>('dice-per-roll-block');
+const dicePerRollInput = byId<HTMLInputElement>('dice-per-roll');
+const modifierInput = byId<HTMLInputElement>('roll-modifier');
+const rollBtn = byId<HTMLButtonElement>('roll-btn');
+const resultValueEl = byId<HTMLParagraphElement>('result-value');
+const resultMetaEl = byId<HTMLParagraphElement>('result-meta');
+const resultDieEl = byId<HTMLElement>('result-die');
+const resultDieShapeEl = byId<HTMLElement>('result-die-shape');
+const weightsEl = byId<HTMLUListElement>('weights');
+const aggregatedGraphEl = byId<HTMLElement>('aggregated-graph');
+const aggregatedDistributionEl = byId<HTMLUListElement>('aggregated-distribution');
+const aggregatedDistributionLabelEl = byId<HTMLElement>('aggregated-distribution-label');
+const probabilityEl = byId<HTMLElement>('probability-drawer');
+const probabilityConfigEl = byId<HTMLElement>('probability-config');
+const probabilityCurrentRollEl = byId<HTMLElement>('probability-current-roll');
+const targetInput = byId<HTMLInputElement>('target-number');
+const targetChanceEl = byId<HTMLElement>('target-chance');
+const settingsEl = byId<HTMLElement>('settings-drawer');
+const averageCurveRollsInput = byId<HTMLInputElement>('average-curve-rolls');
+const weightedDropSlider = byId<HTMLInputElement>('weighted-drop-slider');
+const weightedDropValueEl = byId<HTMLElement>('weighted-drop-value');
+const historyBtn = byId<HTMLButtonElement>('history-btn');
+const historyRoot = byId<HTMLElement>('history-root');
+const modeListboxRoot = byId<HTMLElement>('mode-listbox-root');
+const aggregationListboxRoot = byId<HTMLElement>('aggregation-listbox-root');
+
+const actionEl = <T extends Element>(action: string) =>
+  page.querySelector<T>(`[data-action="${action}"]`);
+
+const recordHistory = (entries: HistoryRoll[]) => {
+  for (const entry of entries) {
+    rollHistory.push(entry);
   }
-
-  type DiceType = {
-    name: string;
-    sides: number;
-    modifiers: Modifier[];
+  if (rollHistory.length > HISTORY_CAP) {
+    rollHistory.splice(0, rollHistory.length - HISTORY_CAP);
   }
+};
 
-  // Share of a face's base chance removed when that face is rolled (weighted mode).
-  let weightedDropPercent = 20;
+const closeHistoryModal = () => {
+  historyBtn.dispatchEvent(new CustomEvent('htmx:abort', {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    detail: { elt: historyBtn },
+  }));
+  historyRoot.innerHTML = '';
+};
 
-  const getBaseModifier = (diceType: DiceType) => {
-    return getChance(diceType) * (weightedDropPercent / 100);
+type HtmxConfigRequestDetail = {
+  path: string;
+  parameters: { history?: string };
+};
+
+historyBtn.addEventListener('htmx:configRequest', (event) => {
+  const detail = (event as CustomEvent<HtmxConfigRequestDetail>).detail;
+  if (detail.path !== '/history') {
+    return;
   }
+  detail.parameters.history = JSON.stringify(rollHistory);
+});
 
-  const diceTypes: DiceType[] = [
-    {
-      name: "d4",
-      sides: 4,
-      modifiers: [],
-    },
-    {
-      name: "d6",
-      sides: 6,
-      modifiers: [],
-    },
-    {
-      name: "d8",
-      sides: 8,
-      modifiers: [],
-    },
-    {
-      name: "d10",
-      sides: 10,
-      modifiers: [],
-    },
-    {
-      name: "d12",
-      sides: 12,
-      modifiers: [],
-    },
-    {
-      name: "d20",
-      sides: 20,
-      modifiers: [],
-    },
-    {
-      name: "d100",
-      sides: 100,
-      modifiers: [],
-    },
-  ]
+historyBtn.addEventListener('htmx:responseError', closeHistoryModal);
+historyBtn.addEventListener('htmx:sendError', closeHistoryModal);
 
-  const getChance = (diceType: DiceType) => {
-    return 100 / diceType.sides;
+const isOverlayDrawer = () => window.matchMedia('(max-width: 1399px)').matches;
+
+const setProbabilityOpen = (open: boolean) => {
+  probabilityEl.dataset.open = String(open);
+  actionEl('probability-toggle')?.setAttribute('aria-expanded', String(open));
+};
+
+const setSettingsOpen = (open: boolean) => {
+  settingsEl.dataset.open = String(open);
+  actionEl('settings-toggle')?.setAttribute('aria-expanded', String(open));
+};
+
+type Theme = 'light' | 'dark';
+const THEME_KEY = 'fair-ish-dice-theme';
+const LEGACY_THEME_KEY = 'faerie-dice-theme';
+
+const readStoredTheme = (): Theme => {
+  try {
+    const stored = localStorage.getItem(THEME_KEY) ?? localStorage.getItem(LEGACY_THEME_KEY);
+    if (stored === 'light' || stored === 'dark') {
+      return stored;
+    }
+  } catch {
+    // Private mode or blocked storage — keep the default dark theme.
   }
+  return 'dark';
+};
 
-  const getFaceChance = (diceType: DiceType, value: number) => {
-    const chance = diceType.modifiers.find(m => m.value === value)?.modifierValue ?? getChance(diceType);
-    return Math.max(0, chance);
+const applyTheme = (theme: Theme) => {
+  document.documentElement.dataset.theme = theme;
+  actionEl('theme-toggle')?.setAttribute('aria-checked', String(theme === 'light'));
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch {
+    // Ignore persistence failures; the in-session theme still applies.
   }
+};
 
-  const ensureFaceModifier = (diceTypeIndex: number, diceType: DiceType, value: number) => {
-    const existing = diceTypes[diceTypeIndex].modifiers.find(m => m.value === value);
-    if (existing) {
-      return existing;
-    }
-    const created = { value, modifierValue: getChance(diceType) };
-    diceTypes[diceTypeIndex].modifiers.push(created);
-    return created;
-  };
+const renderWeightedDropControl = () => {
+  weightedDropSlider.value = String(weightedDropPercent);
+  weightedDropSlider.setAttribute('aria-valuenow', String(weightedDropPercent));
+  weightedDropSlider.setAttribute('aria-valuetext', `${weightedDropPercent} percent`);
+  weightedDropValueEl.textContent = `${weightedDropPercent}%`;
+};
 
-  const modifyValues = (diceType: DiceType, rolledValue: number) => {
-    // Value memory: reduce the rolled face (never below 0) and move that mass
-    // to the opposite high/low group. Same-group faces are left unchanged.
-    const diceTypeIndex = diceTypes.findIndex(d => d.name === diceType.name);
-    const sides = diceType.sides;
-    const groupThreshold = sides / 2;
-    const isHigh = (value: number) => value > groupThreshold;
-
-    for (let value = 1; value <= sides; value++) {
-      ensureFaceModifier(diceTypeIndex, diceType, value);
-    }
-
-    const rolledMod = diceTypes[diceTypeIndex].modifiers.find(m => m.value === rolledValue)!;
-    const available = Math.max(0, rolledMod.modifierValue);
-    rolledMod.modifierValue = available;
-
-    const desiredDrop = getBaseModifier(diceType);
-    const actualDrop = Math.min(desiredDrop, available);
-
-    if (actualDrop <= 0) {
-      return;
-    }
-
-    rolledMod.modifierValue -= actualDrop;
-
-    // Existing split: each face is notionally owed actualDrop/sides from value
-    // memory; same-group cancels that, opposite-group receives it twice → all of
-    // actualDrop lands on the opposite high/low group.
-    const restShare = actualDrop / sides;
-
-    for (let value = 1; value <= sides; value++) {
-      if (value === rolledValue) {
-        continue;
-      }
-      const sameGroup = isHigh(value) === isHigh(rolledValue);
-      if (sameGroup) {
-        continue;
-      }
-      diceTypes[diceTypeIndex].modifiers.find(m => m.value === value)!.modifierValue += 2 * restShare;
-    }
+const getAverageCurveRolls = () => {
+  const value = Number.parseInt(averageCurveRollsInput.value, 10);
+  if (!Number.isFinite(value) || value < 2) {
+    return 2;
   }
-
-  const rollFair = (diceType: DiceType) => {
-    return Math.floor(Math.random() * diceType.sides) + 1;
-  }
-
-  const cloneModifiers = (modifiers: Modifier[]) =>
-    modifiers.map(modifier => ({
-      value: modifier.value,
-      modifierValue: modifier.modifierValue,
-    }));
-
-  const snapshotModifiers = (diceType: DiceType) => cloneModifiers(diceType.modifiers);
-
-  const restoreModifiers = (diceType: DiceType, snapshot: Modifier[]) => {
-    diceType.modifiers = cloneModifiers(snapshot);
-  };
-
-  // Weighted pick along the 0–100% chance line, then update modifiers.
-  const pickWeighted = (diceType: DiceType) => {
-    let roll = Math.random() * 100;
-
-    for (let value = 1; value <= diceType.sides; value++) {
-      roll -= getFaceChance(diceType, value);
-      if (roll < 0) {
-        return value;
-      }
-    }
-
-    // Floating-point safety if chances don't sum to exactly 100
-    return diceType.sides;
-  }
-
-  const rollWeighted = (diceType: DiceType) => {
-    const value = pickWeighted(diceType);
-    modifyValues(diceType, value);
-    return value;
-  }
-
-  // Average of N fair rolls (default 2) → bell curve; middle common, extremes rare.
-  let averageCurveRolls = 2;
-
-  const rollAverage = (diceType: DiceType, componentRolls = averageCurveRolls) => {
-    let sum = 0;
-    for (let i = 0; i < componentRolls; i++) {
-      sum += rollFair(diceType);
-    }
-    return Math.round(sum / componentRolls);
-  }
-
-  type PickMode = 'fair' | 'weighted' | 'average';
-
-  const diceModes: Record<PickMode, (diceType: DiceType) => number> = {
-    fair: rollFair,
-    weighted: rollWeighted,
-    average: rollAverage,
-  };
-
-  const pickModeMeta: Record<PickMode, { label: string; graphSuffix: string }> = {
-    fair: { label: 'fair', graphSuffix: '' },
-    weighted: { label: 'fairish', graphSuffix: ' (fairish)' },
-    average: { label: 'average', graphSuffix: ' (average)' },
-  };
-
-  const isPickMode = (value: unknown): value is PickMode =>
-    typeof value === 'string' && value in pickModeMeta;
-
-  const rollDice = (diceType: DiceType, mode: PickMode) => {
-    return diceModes[mode]?.(diceType) ?? rollFair(diceType);
-  }
-
-  const getFaceChances = (diceType: DiceType) => {
-    return Array.from({ length: diceType.sides }, (_, i) => {
-      const value = i + 1;
-      return { value, chance: getFaceChance(diceType, value) };
-    });
-  }
-
-  const pickModeLabel = (mode: PickMode) => pickModeMeta[mode].label;
-
-  const formatChance = (chance: number) => `${chance.toFixed(3)}%`;
-
-  type HistoryRoll = {
-    die: string;
-    value: number;
-    detail?: string;
-  };
-
-  type ResultMode = 'advantage' | 'disadvantage' | 'sum' | 'drop-lowest' | 'drop-highest';
-
-  type ChanceEntry = { value: number, chance: number };
-
-  const withoutOne = (faces: number[], dropped: number) => {
-    const index = faces.indexOf(dropped);
-    return faces.filter((_, faceIndex) => faceIndex !== index);
-  };
-
-  type Aggregation = {
-    label: string;
-    configLabel: string;
-    graphLabel: string;
-    historyDetail: (faces: number[]) => string;
-    keptFaces: (faces: number[]) => number[];
-    rememberKeptOnly: boolean;
-  };
-
-  const aggregations: Record<ResultMode, Aggregation> = {
-    advantage: {
-      label: 'Advantage',
-      configLabel: 'advantage',
-      graphLabel: 'Advantage distribution',
-      historyDetail: faces => faces.join(', '),
-      keptFaces: faces => [Math.max(...faces)],
-      rememberKeptOnly: true,
-    },
-    disadvantage: {
-      label: 'Disadvantage',
-      configLabel: 'disadvantage',
-      graphLabel: 'Disadvantage distribution',
-      historyDetail: faces => faces.join(', '),
-      keptFaces: faces => [Math.min(...faces)],
-      rememberKeptOnly: true,
-    },
-    sum: {
-      label: 'Sum',
-      configLabel: 'sum',
-      graphLabel: 'Sum distribution',
-      historyDetail: faces => `sum of ${faces.join(', ')}`,
-      keptFaces: faces => faces,
-      rememberKeptOnly: false,
-    },
-    'drop-lowest': {
-      label: 'Drop low',
-      configLabel: 'drop low',
-      graphLabel: 'Drop low distribution',
-      historyDetail: faces => `drop low of ${faces.join(', ')}`,
-      keptFaces: faces => withoutOne(faces, Math.min(...faces)),
-      rememberKeptOnly: true,
-    },
-    'drop-highest': {
-      label: 'Drop top',
-      configLabel: 'drop top',
-      graphLabel: 'Drop top distribution',
-      historyDetail: faces => `drop top of ${faces.join(', ')}`,
-      keptFaces: faces => withoutOne(faces, Math.max(...faces)),
-      rememberKeptOnly: true,
-    },
-  };
-
-  const isResultMode = (value: unknown): value is ResultMode =>
-    typeof value === 'string' && value in aggregations;
-
-  let selectedDice = diceTypes[5]; // d20
-  let lastRolls: number[] = [];
-  let lastReportedValues: number[] = [];
-  let pickMode: PickMode = 'weighted';
-  let resultMode: ResultMode | null = null;
-  const HISTORY_CAP = 100;
-  const STATE_KEY = 'fair-ish-dice-state';
-  const LEGACY_STATE_KEY = 'faerie-dice-state';
-  const STATE_VERSION = 1;
-  const rollHistory: HistoryRoll[] = [];
-
-  const dieSelect = document.querySelector<HTMLUListElement>('#die-select')!;
-  const rollsInput = document.querySelector<HTMLInputElement>('#number-of-rolls')!;
-  const rollsDecBtn = document.querySelector<HTMLButtonElement>('#rolls-dec')!;
-  const rollsIncBtn = document.querySelector<HTMLButtonElement>('#rolls-inc')!;
-  const dicePerRollBlock = document.querySelector<HTMLElement>('#dice-per-roll-block')!;
-  const dicePerRollInput = document.querySelector<HTMLInputElement>('#dice-per-roll')!;
-  const dicePerRollDecBtn = document.querySelector<HTMLButtonElement>('#dice-per-roll-dec')!;
-  const dicePerRollIncBtn = document.querySelector<HTMLButtonElement>('#dice-per-roll-inc')!;
-  const modifierInput = document.querySelector<HTMLInputElement>('#roll-modifier')!;
-  const modifierDecBtn = document.querySelector<HTMLButtonElement>('#modifier-dec')!;
-  const modifierIncBtn = document.querySelector<HTMLButtonElement>('#modifier-inc')!;
-  const rollBtn = document.querySelector<HTMLButtonElement>('#roll-btn')!;
-  const probabilityRollBtn = document.querySelector<HTMLButtonElement>('#probability-roll-btn')!;
-  const resetBtn = document.querySelector<HTMLButtonElement>('#reset-btn')!;
-  const resultValueEl = document.querySelector<HTMLParagraphElement>('#result-value')!;
-  const resultMetaEl = document.querySelector<HTMLParagraphElement>('#result-meta')!;
-  const resultDieEl = document.querySelector<HTMLElement>('#result-die')!;
-  const resultDieShapeEl = document.querySelector<HTMLElement>('#result-die-shape')!;
-  const weightsEl = document.querySelector<HTMLUListElement>('#weights')!;
-  const aggregatedGraphEl = document.querySelector<HTMLElement>('#aggregated-graph')!;
-  const aggregatedDistributionEl = document.querySelector<HTMLUListElement>('#aggregated-distribution')!;
-  const aggregatedDistributionLabelEl = document.querySelector<HTMLElement>('#aggregated-distribution-label')!;
-  const probabilityEl = document.querySelector<HTMLElement>('#probability-drawer')!;
-  const probabilityToggleBtn = document.querySelector<HTMLButtonElement>('#probability-toggle')!;
-  const probabilityCloseBtn = document.querySelector<HTMLButtonElement>('#probability-close')!;
-  const probabilityConfigEl = document.querySelector<HTMLElement>('#probability-config')!;
-  const probabilityCurrentRollEl = document.querySelector<HTMLElement>('#probability-current-roll')!;
-  const targetInput = document.querySelector<HTMLInputElement>('#target-number')!;
-  const targetDecBtn = document.querySelector<HTMLButtonElement>('#target-dec')!;
-  const targetIncBtn = document.querySelector<HTMLButtonElement>('#target-inc')!;
-  const targetChanceEl = document.querySelector<HTMLElement>('#target-chance')!;
-  const settingsEl = document.querySelector<HTMLElement>('#settings-drawer')!;
-  const settingsToggleBtn = document.querySelector<HTMLButtonElement>('#settings-toggle')!;
-  const settingsCloseBtn = document.querySelector<HTMLButtonElement>('#settings-close')!;
-  const settingsDefaultBtn = document.querySelector<HTMLButtonElement>('#settings-default')!;
-  const themeToggleBtn = document.querySelector<HTMLButtonElement>('#theme-toggle')!;
-  const averageCurveRollsInput = document.querySelector<HTMLInputElement>('#average-curve-rolls')!;
-  const averageCurveRollsDecBtn = document.querySelector<HTMLButtonElement>('#average-curve-rolls-dec')!;
-  const averageCurveRollsIncBtn = document.querySelector<HTMLButtonElement>('#average-curve-rolls-inc')!;
-  const weightedDropSlider = document.querySelector<HTMLInputElement>('#weighted-drop-slider')!;
-  const weightedDropValueEl = document.querySelector<HTMLElement>('#weighted-drop-value')!;
-  const historyBtn = document.querySelector<HTMLButtonElement>('#history-btn')!;
-  const historyRoot = document.querySelector<HTMLElement>('#history-root')!;
-
-  const recordHistory = (entries: HistoryRoll[]) => {
-    for (const entry of entries) {
-      rollHistory.push(entry);
-    }
-    if (rollHistory.length > HISTORY_CAP) {
-      rollHistory.splice(0, rollHistory.length - HISTORY_CAP);
-    }
-  };
-
-  const closeHistoryModal = () => {
-    historyBtn.dispatchEvent(new CustomEvent('htmx:abort', {
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      detail: { elt: historyBtn },
-    }));
-    historyRoot.innerHTML = '';
-  };
-
-  type HtmxConfigRequestDetail = {
-    path: string;
-    parameters: { history?: string };
-  };
-
-  historyBtn.addEventListener('htmx:configRequest', (event) => {
-    const detail = (event as CustomEvent<HtmxConfigRequestDetail>).detail;
-    if (detail.path !== '/history') {
-      return;
-    }
-    detail.parameters.history = JSON.stringify(rollHistory);
-  });
-
-  historyBtn.addEventListener('htmx:responseError', closeHistoryModal);
-  historyBtn.addEventListener('htmx:sendError', closeHistoryModal);
-
-  type ListboxApi = {
-    getValue: () => string;
-    setValue: (value: string) => void;
-    close: () => void;
-  };
-
-  const createListbox = (
-    root: HTMLElement,
-    onChange: (value: string) => void,
-  ): ListboxApi => {
-    const trigger = root.querySelector<HTMLButtonElement>('.listbox-trigger')!;
-    const list = root.querySelector<HTMLUListElement>('[role="listbox"]')!;
-    const options = Array.from(list.querySelectorAll<HTMLElement>('[role="option"]'));
-
-    const getSelectedOption = () =>
-      options.find(option => option.getAttribute('aria-selected') === 'true') ?? options[0];
-
-    const getValue = () => getSelectedOption()?.dataset.value ?? '';
-
-    const LIST_GAP = 4;
-
-    const placeOptions = () => {
-      list.classList.remove('listbox-options--drop-up');
-      const triggerRect = trigger.getBoundingClientRect();
-      const listHeight = list.getBoundingClientRect().height;
-      const clipRoot = root.closest('.shell');
-      const clipRect = clipRoot?.getBoundingClientRect();
-      const clipTop = clipRect?.top ?? 0;
-      const clipBottom = clipRect?.bottom ?? window.innerHeight;
-      const spaceBelow = clipBottom - triggerRect.bottom - LIST_GAP;
-      const spaceAbove = triggerRect.top - clipTop - LIST_GAP;
-      const openUp = spaceBelow < listHeight && spaceAbove > spaceBelow;
-      list.classList.toggle('listbox-options--drop-up', openUp);
-    };
-
-    const setOpen = (open: boolean) => {
-      trigger.setAttribute('aria-expanded', String(open));
-      list.hidden = !open;
-      if (open) {
-        placeOptions();
-        getSelectedOption()?.focus();
-      } else {
-        list.classList.remove('listbox-options--drop-up');
-      }
-    };
-
-    const setValue = (value: string) => {
-      const next = options.find(option => (option.dataset.value ?? '') === value) ?? options[0];
-      for (const option of options) {
-        option.setAttribute('aria-selected', String(option === next));
-      }
-      trigger.textContent = next.textContent?.trim() ?? '';
-    };
-
-    const selectOption = (option: HTMLElement) => {
-      const value = option.dataset.value ?? '';
-      setValue(value);
-      setOpen(false);
-      trigger.focus();
-      onChange(value);
-    };
-
-    const moveSelection = (delta: number) => {
-      const currentIndex = Math.max(0, options.indexOf(document.activeElement as HTMLElement));
-      const nextIndex = (currentIndex + delta + options.length) % options.length;
-      options[nextIndex].focus();
-    };
-
-    trigger.addEventListener('click', () => {
-      setOpen(list.hasAttribute('hidden'));
-    });
-
-    trigger.addEventListener('keydown', (event) => {
-      if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        setOpen(true);
-      }
-    });
-
-    list.addEventListener('keydown', (event) => {
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        moveSelection(1);
-      } else if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        moveSelection(-1);
-      } else if (event.key === 'Home') {
-        event.preventDefault();
-        options[0]?.focus();
-      } else if (event.key === 'End') {
-        event.preventDefault();
-        options[options.length - 1]?.focus();
-      } else if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        if (document.activeElement instanceof HTMLElement && options.includes(document.activeElement)) {
-          selectOption(document.activeElement);
-        }
-      } else if (event.key === 'Escape') {
-        event.preventDefault();
-        setOpen(false);
-        trigger.focus();
-      }
-    });
-
-    for (const option of options) {
-      option.addEventListener('click', () => {
-        selectOption(option);
-      });
-    }
-
-    document.addEventListener('click', (event) => {
-      if (!(event.target instanceof Node) || root.contains(event.target)) {
-        return;
-      }
-      setOpen(false);
-    });
-
-    window.addEventListener('resize', () => {
-      if (!list.hidden) {
-        placeOptions();
-      }
-    });
-
-    return {
-      getValue,
-      setValue,
-      close: () => setOpen(false),
-    };
-  };
-
-  const isOverlayDrawer = () => window.matchMedia('(max-width: 1399px)').matches;
-
-  const setProbabilityOpen = (open: boolean) => {
-    probabilityEl.dataset.open = String(open);
-    probabilityToggleBtn.setAttribute('aria-expanded', String(open));
-  };
-
-  const setSettingsOpen = (open: boolean) => {
-    settingsEl.dataset.open = String(open);
-    settingsToggleBtn.setAttribute('aria-expanded', String(open));
-  };
-
-  type Theme = 'light' | 'dark';
-  const THEME_KEY = 'fair-ish-dice-theme';
-  const LEGACY_THEME_KEY = 'faerie-dice-theme';
-
-  const readStoredTheme = (): Theme => {
-    try {
-      const stored = localStorage.getItem(THEME_KEY) ?? localStorage.getItem(LEGACY_THEME_KEY);
-      if (stored === 'light' || stored === 'dark') {
-        return stored;
-      }
-    } catch {
-      // Private mode or blocked storage — keep the default dark theme.
-    }
-    return 'dark';
-  };
-
-  const applyTheme = (theme: Theme) => {
-    document.documentElement.dataset.theme = theme;
-    themeToggleBtn.setAttribute('aria-checked', String(theme === 'light'));
-    try {
-      localStorage.setItem(THEME_KEY, theme);
-    } catch {
-      // Ignore persistence failures; the in-session theme still applies.
-    }
-  };
-
-  const renderWeightedDropControl = () => {
-    weightedDropSlider.value = String(weightedDropPercent);
-    weightedDropSlider.setAttribute('aria-valuenow', String(weightedDropPercent));
-    weightedDropSlider.setAttribute('aria-valuetext', `${weightedDropPercent} percent`);
-    weightedDropValueEl.textContent = `${weightedDropPercent}%`;
-  };
-
-  const getAverageCurveRolls = () => {
-    const value = Number.parseInt(averageCurveRollsInput.value, 10);
-    if (!Number.isFinite(value) || value < 2) {
-      return 2;
-    }
-    return Math.min(value, 20);
-  };
-
-  const setAverageCurveRolls = (value: number) => {
-    averageCurveRolls = Math.min(20, Math.max(2, value));
-    averageCurveRollsInput.value = String(averageCurveRolls);
-  };
-
-  const applyAverageCurveRolls = (value: number) => {
-    setAverageCurveRolls(value);
-    if (pickMode === 'average') {
-      renderWeights();
-      renderAggregatedDistribution();
-    }
-    persistState();
-  };
-
-  const dieIconPaths: Record<string, string> = {
-    d4: `<polygon points="12,3 21,20 3,20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter"/>`,
-    d6: `<rect x="4" y="4" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"/>`,
-    d8: `<polygon points="12,2 20,12 12,22 4,12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter"/>`,
-    d10: `<polygon points="12,2 19,9 12,22 5,9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter"/>`,
-    d12: `<polygon points="12,2 20.5,7 20.5,17 12,22 3.5,17 3.5,7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter"/>`,
-    d20: `<polygon points="12,2 21,8.5 17.5,19.5 6.5,19.5 3,8.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter"/>`,
-    d100: `<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/>`,
-  };
-
-  const dieIcon = (name: string) =>
-    `<svg class="die-icon" viewBox="0 0 24 24" aria-hidden="true">${dieIconPaths[name]}</svg>`;
-
-  const renderStageDie = () => {
-    resultDieEl.dataset.die = selectedDice.name;
-    resultDieShapeEl.innerHTML = dieIcon(selectedDice.name);
-  };
-
-  const getRollCount = () => {
-    const value = Number.parseInt(rollsInput.value, 10);
-    if (!Number.isFinite(value) || value < 1) {
-      return 1;
-    }
-    return Math.min(value, 100);
-  };
-
-  const setRollCount = (value: number) => {
-    rollsInput.value = String(Math.min(100, Math.max(1, value)));
-    const count = getRollCount();
-    rollBtn.textContent = count === 1 ? 'Roll' : `Roll ×${count}`;
-  };
-
-  const usesDicePerRoll = () => resultMode !== null;
-
-  const getDicePerRoll = () => {
-    const value = Number.parseInt(dicePerRollInput.value, 10);
-    if (!Number.isFinite(value) || value < 2) {
-      return 2;
-    }
-    return Math.min(value, 100);
-  };
-
-  const setDicePerRoll = (value: number) => {
-    dicePerRollInput.value = String(Math.min(100, Math.max(2, value)));
-  };
-
-  const getRollModifier = () => {
-    const value = Number.parseInt(modifierInput.value, 10);
-    if (!Number.isFinite(value)) {
-      return 0;
-    }
-    return Math.min(100, Math.max(-100, value));
-  };
-
-  const setRollModifier = (value: number) => {
-    modifierInput.value = String(Math.min(100, Math.max(-100, Math.round(value))));
-  };
-
-  const formatModifier = (value: number) => {
-    if (value === 0) {
-      return '';
-    }
-    return value > 0 ? `+${value}` : String(value);
-  };
-
-  const getTargetNumber = () => {
-    const raw = targetInput.value.trim();
-    if (raw === '') {
-      return null;
-    }
-    const value = Number.parseInt(raw, 10);
-    if (!Number.isFinite(value)) {
-      return null;
-    }
-    return value;
-  };
-
-  const setTargetNumber = (value: number) => {
-    targetInput.value = String(Math.min(10000, Math.max(1, Math.round(value))));
-  };
-
-  const stepTarget = (delta: number) => {
-    const current = getTargetNumber();
-    setTargetNumber(current === null ? 1 : current + delta);
+  return Math.min(value, 20);
+};
+
+const setAverageCurveRolls = (value: number) => {
+  averageCurveRolls = Math.min(20, Math.max(2, value));
+  averageCurveRollsInput.value = String(averageCurveRolls);
+};
+
+const applyAverageCurveRolls = (value: number) => {
+  setAverageCurveRolls(value);
+  if (pickMode === 'average') {
+    renderWeights();
     renderAggregatedDistribution();
-  };
+  }
+  persistState();
+};
 
-  const renderDicePerRollControl = () => {
-    dicePerRollBlock.hidden = !usesDicePerRoll();
-    if (usesDicePerRoll()) {
-      setDicePerRoll(getDicePerRoll());
-    }
-  };
+const renderStageDie = () => {
+  resultDieEl.dataset.die = selectedDice.name;
+  resultDieShapeEl.innerHTML = dieIcon(selectedDice.name);
+};
 
-  type PersistedSettings = {
-    selectedDie: string;
-    pickMode: PickMode;
-    resultMode: ResultMode | null;
-    rollCount: number;
-    dicePerRoll: number;
-    modifier: number;
-    weightedDropPercent: number;
-    averageCurveRolls: number;
-  };
+const getRollCount = () => {
+  const value = Number.parseInt(rollsInput.value, 10);
+  if (!Number.isFinite(value) || value < 1) {
+    return 1;
+  }
+  return Math.min(value, 100);
+};
 
-  type PersistedState = {
-    version: number;
-    history: HistoryRoll[];
-    weights: Record<string, Modifier[]>;
-    settings: PersistedSettings;
-  };
+const setRollCount = (value: number) => {
+  rollsInput.value = String(Math.min(100, Math.max(1, value)));
+  const count = getRollCount();
+  rollBtn.textContent = count === 1 ? 'Roll' : `Roll ×${count}`;
+};
 
-  const defaultSettings = (): PersistedSettings => ({
-    selectedDie: diceTypes[5].name,
-    pickMode: 'weighted',
-    resultMode: null,
-    rollCount: 1,
-    dicePerRoll: 2,
-    modifier: 0,
-    weightedDropPercent: 20,
-    averageCurveRolls: 2,
+const usesDicePerRoll = () => resultMode !== null;
+
+const getDicePerRoll = () => {
+  const value = Number.parseInt(dicePerRollInput.value, 10);
+  if (!Number.isFinite(value) || value < 2) {
+    return 2;
+  }
+  return Math.min(value, 100);
+};
+
+const setDicePerRoll = (value: number) => {
+  dicePerRollInput.value = String(Math.min(100, Math.max(2, value)));
+};
+
+const getRollModifier = () => {
+  const value = Number.parseInt(modifierInput.value, 10);
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.min(100, Math.max(-100, value));
+};
+
+const setRollModifier = (value: number) => {
+  modifierInput.value = String(Math.min(100, Math.max(-100, Math.round(value))));
+};
+
+const formatModifier = (value: number) => {
+  if (value === 0) {
+    return '';
+  }
+  return value > 0 ? `+${value}` : String(value);
+};
+
+const getTargetNumber = () => {
+  const raw = targetInput.value.trim();
+  if (raw === '') {
+    return null;
+  }
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+  return value;
+};
+
+const setTargetNumber = (value: number) => {
+  targetInput.value = String(Math.min(10000, Math.max(1, Math.round(value))));
+};
+
+const stepTarget = (delta: number) => {
+  const current = getTargetNumber();
+  setTargetNumber(current === null ? 1 : current + delta);
+  renderAggregatedDistribution();
+};
+
+const renderDicePerRollControl = () => {
+  dicePerRollBlock.hidden = !usesDicePerRoll();
+  if (usesDicePerRoll()) {
+    setDicePerRoll(getDicePerRoll());
+  }
+};
+
+const persistState = () => {
+  writePersistedState({
+    diceCatalog: diceTypes,
+    selectedDice,
+    pickMode,
+    resultMode,
+    history: rollHistory,
+    rollCount: getRollCount(),
+    dicePerRoll: getDicePerRoll(),
+    modifier: getRollModifier(),
+    weightedDropPercent,
+    averageCurveRolls,
   });
+};
 
-  const persistState = () => {
-    const weights: Record<string, Modifier[]> = {};
-    for (const die of diceTypes) {
-      if (die.modifiers.length > 0) {
-        weights[die.name] = cloneModifiers(die.modifiers);
-      }
-    }
+const restorePersistedState = () => {
+  const loaded = loadPersistedState(diceTypes);
+  if (!loaded) {
+    return;
+  }
 
-    const payload: PersistedState = {
-      version: STATE_VERSION,
-      history: rollHistory.slice(-HISTORY_CAP),
-      weights,
-      settings: {
-        selectedDie: selectedDice.name,
-        pickMode,
-        resultMode,
-        rollCount: getRollCount(),
-        dicePerRoll: getDicePerRoll(),
-        modifier: getRollModifier(),
-        weightedDropPercent,
-        averageCurveRolls,
-      },
-    };
+  rollHistory.length = 0;
+  rollHistory.push(...loaded.history);
 
-    try {
-      localStorage.setItem(STATE_KEY, JSON.stringify(payload));
-    } catch {
-      // Private mode or blocked storage — in-session state still works.
-    }
-  };
+  const settings = loaded.settings;
+  selectedDice = diceTypes.find(die => die.name === settings.selectedDie) ?? selectedDice;
+  pickMode = settings.pickMode;
+  resultMode = settings.resultMode;
+  weightedDropPercent = settings.weightedDropPercent;
+  setRollCount(settings.rollCount);
+  setDicePerRoll(settings.dicePerRoll);
+  setRollModifier(settings.modifier);
+  setAverageCurveRolls(settings.averageCurveRolls);
+};
 
-  const parseStoredModifiers = (raw: unknown, sides: number): Modifier[] => {
-    if (!Array.isArray(raw)) {
-      return [];
-    }
+const renderResultModeControls = () => {
+  aggregationListbox.setValue(resultMode ?? '');
+  renderDicePerRollControl();
+};
 
-    const byValue = new Map<number, Modifier>();
-    for (const item of raw) {
-      if (!item || typeof item !== 'object') {
-        continue;
-      }
-      const record = item as { value?: unknown; modifierValue?: unknown };
-      const value = typeof record.value === 'number' ? record.value : Number(record.value);
-      const modifierValue = typeof record.modifierValue === 'number'
-        ? record.modifierValue
-        : Number(record.modifierValue);
-      if (!Number.isInteger(value) || value < 1 || value > sides || !Number.isFinite(modifierValue)) {
-        continue;
-      }
-      byValue.set(value, { value, modifierValue: Math.max(0, modifierValue) });
-    }
+const setResultDisplay = (value: string, metaHtml: string) => {
+  resultValueEl.textContent = value;
+  resultMetaEl.innerHTML = metaHtml;
+  resultDieEl.dataset.digits = String(Math.max(1, value.replace(/\D/g, '').length || 1));
+  renderProbabilityCurrentRoll(value);
+};
 
-    return Array.from(byValue.values());
-  };
+const renderProbabilityCurrentRoll = (heroValue: string) => {
+  if (heroValue === '—' || lastReportedValues.length === 0) {
+    probabilityCurrentRollEl.textContent = 'Current roll: —';
+    return;
+  }
+  const shown = lastReportedValues.length <= 8
+    ? lastReportedValues.join(', ')
+    : heroValue;
+  probabilityCurrentRollEl.textContent = `Current roll: ${shown}`;
+};
 
-  const parseStoredHistory = (raw: unknown): HistoryRoll[] => {
-    if (!Array.isArray(raw)) {
-      return [];
-    }
+const totalRolls = (rolls: number[]) => rolls.reduce((sum, value) => sum + value, 0);
 
-    const entries: HistoryRoll[] = [];
-    for (const item of raw) {
-      if (!item || typeof item !== 'object') {
-        continue;
-      }
-      const record = item as { die?: unknown; value?: unknown; detail?: unknown };
-      if (typeof record.die !== 'string') {
-        continue;
-      }
-      const die = diceTypes.find(candidate => candidate.name === record.die);
-      if (!die) {
-        continue;
-      }
-      const value = typeof record.value === 'number' ? record.value : Number(record.value);
-      if (!Number.isFinite(value)) {
-        continue;
-      }
-      if (!Number.isInteger(value) || value < -10000 || value > 20000) {
-        continue;
-      }
-      const entry: HistoryRoll = { die: record.die, value };      if (typeof record.detail === 'string' && record.detail.length > 0) {
-        entry.detail = record.detail;
-      }
-      entries.push(entry);
-    }
+type RollGroup = {
+  faces: number[];
+  value: number;
+};
 
-    return entries.slice(-HISTORY_CAP);
-  };
+const formatRollResult = (groups: RollGroup[], mode: ResultMode | null, picking: PickMode) => {
+  const modeLabel = pickModeLabel(picking);
+  const dieName = selectedDice.name.toUpperCase();
+  const modifierText = formatModifier(getRollModifier());
 
-  const parseStoredSettings = (raw: unknown): PersistedSettings => {
-    const defaults = defaultSettings();
-    if (!raw || typeof raw !== 'object') {
-      return defaults;
-    }
-
-    const record = raw as Partial<PersistedSettings>;
-    const selectedDie = typeof record.selectedDie === 'string'
-      && diceTypes.some(die => die.name === record.selectedDie)
-      ? record.selectedDie
-      : defaults.selectedDie;
-    const nextPick = isPickMode(record.pickMode) ? record.pickMode : defaults.pickMode;
-    let nextResult = defaults.resultMode;
-    if (record.resultMode === null) {
-      nextResult = null;
-    } else if (isResultMode(record.resultMode)) {
-      nextResult = record.resultMode;
-    }
-
-    const clamp = (value: unknown, min: number, max: number, fallback: number) => {
-      const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
-      if (!Number.isFinite(parsed)) {
-        return fallback;
-      }
-      return Math.min(max, Math.max(min, Math.round(parsed)));
-    };
-
-    return {
-      selectedDie,
-      pickMode: nextPick,
-      resultMode: nextResult,
-      rollCount: clamp(record.rollCount, 1, 100, defaults.rollCount),
-      dicePerRoll: clamp(record.dicePerRoll, 2, 100, defaults.dicePerRoll),
-      modifier: clamp(record.modifier, -100, 100, defaults.modifier),
-      weightedDropPercent: clamp(record.weightedDropPercent, 0, 100, defaults.weightedDropPercent),
-      averageCurveRolls: clamp(record.averageCurveRolls, 2, 20, defaults.averageCurveRolls),
-    };
-  };
-
-  const loadPersistedState = () => {
-    try {
-      const raw = localStorage.getItem(STATE_KEY) ?? localStorage.getItem(LEGACY_STATE_KEY);
-      if (!raw) {
-        return;
-      }
-
-      const parsed = JSON.parse(raw) as Partial<PersistedState>;
-      if (!parsed || typeof parsed !== 'object' || parsed.version !== STATE_VERSION) {
-        return;
-      }
-
-      rollHistory.length = 0;
-      rollHistory.push(...parseStoredHistory(parsed.history));
-
-      const weights = parsed.weights && typeof parsed.weights === 'object'
-        ? parsed.weights as Record<string, unknown>
-        : {};
-      for (const die of diceTypes) {
-        die.modifiers = parseStoredModifiers(weights[die.name], die.sides);
-      }
-
-      const settings = parseStoredSettings(parsed.settings);
-      selectedDice = diceTypes.find(die => die.name === settings.selectedDie) ?? selectedDice;
-      pickMode = settings.pickMode;
-      resultMode = settings.resultMode;
-      weightedDropPercent = settings.weightedDropPercent;
-      setRollCount(settings.rollCount);
-      setDicePerRoll(settings.dicePerRoll);
-      setRollModifier(settings.modifier);
-      setAverageCurveRolls(settings.averageCurveRolls);
-    } catch {
-      // Ignore corrupt or blocked storage; keep in-memory defaults.
-    }
-  };
-
-  const renderResultModeControls = () => {
-    aggregationListbox.setValue(resultMode ?? '');
-    renderDicePerRollControl();
-  };
-
-  const setResultDisplay = (value: string, metaHtml: string) => {
-    resultValueEl.textContent = value;
-    resultMetaEl.innerHTML = metaHtml;
-    resultDieEl.dataset.digits = String(Math.max(1, value.replace(/\D/g, '').length || 1));
-    renderProbabilityCurrentRoll(value);
-  };
-
-  const renderProbabilityCurrentRoll = (heroValue: string) => {
-    if (heroValue === '—' || lastReportedValues.length === 0) {
-      probabilityCurrentRollEl.textContent = 'Current roll: —';
-      return;
-    }
-    const shown = lastReportedValues.length <= 8
-      ? lastReportedValues.join(', ')
-      : heroValue;
-    probabilityCurrentRollEl.textContent = `Current roll: ${shown}`;
-  };
-
-  const totalRolls = (rolls: number[]) => rolls.reduce((sum, value) => sum + value, 0);
-
-  type RollGroup = {
-    faces: number[];
-    value: number;
-  };
-
-  const formatRollResult = (groups: RollGroup[], mode: ResultMode | null, picking: PickMode) => {
-    const modeLabel = pickModeLabel(picking);
-    const dieName = selectedDice.name.toUpperCase();
-    const modifierText = formatModifier(getRollModifier());
-
-    if (mode) {
-      const dicePerRoll = groups[0]?.faces.length ?? getDicePerRoll();
-      const formula = groups.length === 1
-        ? `${dicePerRoll}${dieName}${modifierText}`
-        : `${groups.length}× ${dicePerRoll}${dieName}${modifierText}`;
-      const reported = groups.map(group => group.value);
-      const rollsText = groups.map(group => {
-        const facesText = group.faces.join(', ');
-        return `[${facesText}]→${group.value}`;
-      }).join('; ');
-
-      return {
-        value: groups.length === 1 ? String(groups[0].value) : `${groups.length}×`,
-        meta: `${formula}: ${rollsText} → <span class="mode">${aggregations[mode].label} (${modeLabel})</span>`,
-        reported,
-      };
-    }
-
+  if (mode) {
+    const dicePerRoll = groups[0]?.faces.length ?? getDicePerRoll();
+    const formula = groups.length === 1
+      ? `${dicePerRoll}${dieName}${modifierText}`
+      : `${groups.length}× ${dicePerRoll}${dieName}${modifierText}`;
     const reported = groups.map(group => group.value);
-    const rollsText = reported.join(', ');
-    const count = reported.length;
-    const formula = `${count}${dieName}${modifierText}`;
-
-    if (count === 1) {
-      return {
-        value: String(reported[0]),
-        meta: `${formula} <span class="mode">(${modeLabel})</span>`,
-        reported,
-      };
-    }
+    const rollsText = groups.map(group => {
+      const facesText = group.faces.join(', ');
+      return `[${facesText}]→${group.value}`;
+    }).join('; ');
 
     return {
-      value: `${count}×`,
-      meta: `${formula}: ${rollsText} <span class="mode">(${modeLabel})</span>`,
+      value: groups.length === 1 ? String(groups[0].value) : `${groups.length}×`,
+      meta: `${formula}: ${rollsText} → <span class="mode">${aggregations[mode].label} (${modeLabel})</span>`,
       reported,
     };
+  }
+
+  const reported = groups.map(group => group.value);
+  const rollsText = reported.join(', ');
+  const count = reported.length;
+  const formula = `${count}${dieName}${modifierText}`;
+
+  if (count === 1) {
+    return {
+      value: String(reported[0]),
+      meta: `${formula} <span class="mode">(${modeLabel})</span>`,
+      reported,
+    };
+  }
+
+  return {
+    value: `${count}×`,
+    meta: `${formula}: ${rollsText} <span class="mode">(${modeLabel})</span>`,
+    reported,
   };
+};
 
-  const renderModeControls = () => {
-    modeListbox.setValue(pickMode);
-  };
+const renderModeControls = () => {
+  modeListbox.setValue(pickMode);
+};
 
-  const renderProbabilityConfig = () => {
-    const die = selectedDice.name;
-    const suffix = formatModifier(getRollModifier());
-    if (resultMode) {
-      const rolls = getRollCount();
-      const dice = getDicePerRoll();
-      const { configLabel } = aggregations[resultMode];
-      probabilityConfigEl.textContent = rolls === 1
-        ? `Current config: ${dice}${die}${suffix} ${configLabel}`
-        : `Current config: ${rolls}× ${dice}${die}${suffix} ${configLabel}`;
-      return;
-    }
-    probabilityConfigEl.textContent = `Current config: ${getRollCount()}${die}${suffix}`;
-  };
+const renderProbabilityConfig = () => {
+  const die = selectedDice.name;
+  const suffix = formatModifier(getRollModifier());
+  if (resultMode) {
+    const rolls = getRollCount();
+    const dice = getDicePerRoll();
+    const { configLabel } = aggregations[resultMode];
+    probabilityConfigEl.textContent = rolls === 1
+      ? `Current config: ${dice}${die}${suffix} ${configLabel}`
+      : `Current config: ${rolls}× ${dice}${die}${suffix} ${configLabel}`;
+    return;
+  }
+  probabilityConfigEl.textContent = `Current config: ${getRollCount()}${die}${suffix}`;
+};
 
-  const getWeightToneClass = (chance: number, baseChance: number) => {
-    const ratio = chance / baseChance;
-    if (ratio < 0.66) {
-      return 'weight-low';
-    }
-    if (ratio < 0.75) {
-      return 'weight-warn';
-    }
-    if (ratio > 1.25) {
-      return 'weight-high';
-    }
-    return '';
-  };
+const formatChance = (chance: number) => `${chance.toFixed(3)}%`;
 
-  const renderWeights = () => {
-    const faces = pickMode === 'average'
-      ? averageCurveFaceChances(selectedDice.sides)
-      : getFaceChances(selectedDice);
-    const baseChance = getChance(selectedDice);
-    const maxChance = Math.max(...faces.map(face => face.chance), baseChance);
-    const hitFaces = new Set(lastRolls);
-    const middle = Math.ceil(selectedDice.sides / 2);
+const getWeightToneClass = (chance: number, baseChance: number) => {
+  const ratio = chance / baseChance;
+  if (ratio < 0.66) {
+    return 'weight-low';
+  }
+  if (ratio < 0.75) {
+    return 'weight-warn';
+  }
+  if (ratio > 1.25) {
+    return 'weight-high';
+  }
+  return '';
+};
 
-    weightsEl.style.setProperty('--sides', String(selectedDice.sides));
-    weightsEl.innerHTML = faces.map(face => {
-      const height = Math.max(0, (face.chance / maxChance) * 100);
-      const hitClass = hitFaces.has(face.value) ? 'hit' : '';
-      const toneClass = getWeightToneClass(face.chance, baseChance);
-      const isKeyLabel =
-        face.value === 1 ||
-        face.value === selectedDice.sides ||
-        face.value === middle;
-      const labelClass = isKeyLabel ? 'key-label' : '';
-      return `
+const currentDistribution = () => getReportedDistribution({
+  resultMode,
+  pickMode,
+  diceType: selectedDice,
+  dicePerRoll: getDicePerRoll(),
+  modifier: getRollModifier(),
+  averageCurveRolls,
+});
+
+const renderWeights = () => {
+  const faces = pickMode === 'average'
+    ? averageCurveFaceChances(selectedDice.sides, averageCurveRolls)
+    : getFaceChances(selectedDice);
+  const baseChance = getChance(selectedDice);
+  const maxChance = Math.max(...faces.map(face => face.chance), baseChance);
+  const hitFaces = new Set(lastRolls);
+  const middle = Math.ceil(selectedDice.sides / 2);
+
+  weightsEl.style.setProperty('--sides', String(selectedDice.sides));
+  weightsEl.innerHTML = faces.map(face => {
+    const height = Math.max(0, (face.chance / maxChance) * 100);
+    const hitClass = hitFaces.has(face.value) ? 'hit' : '';
+    const toneClass = getWeightToneClass(face.chance, baseChance);
+    const isKeyLabel =
+      face.value === 1 ||
+      face.value === selectedDice.sides ||
+      face.value === middle;
+    const labelClass = isKeyLabel ? 'key-label' : '';
+    return `
         <li class="${hitClass} ${toneClass} ${labelClass}" title="${face.value}: ${formatChance(face.chance)}">
           <span class="bar-track">
             <span class="bar" style="height: ${height}%"></span>
@@ -975,52 +431,52 @@ import './style.css'
           <span class="face">${face.value}</span>
         </li>
       `;
-    }).join('');
+  }).join('');
+  renderTargetChance();
+};
+
+const renderAggregatedDistribution = () => {
+  if (!resultMode) {
+    aggregatedGraphEl.hidden = true;
+    aggregatedDistributionEl.innerHTML = '';
     renderTargetChance();
-  };
+    return;
+  }
 
-  const renderAggregatedDistribution = () => {
-    if (!resultMode) {
-      aggregatedGraphEl.hidden = true;
-      aggregatedDistributionEl.innerHTML = '';
-      renderTargetChance();
-      return;
-    }
+  const distribution = currentDistribution();
+  const title = `${aggregations[resultMode].graphLabel}${pickModeMeta[pickMode].graphSuffix}`;
 
-    const distribution = getReportedDistribution();
-    const title = `${aggregations[resultMode].graphLabel}${pickModeMeta[pickMode].graphSuffix}`;
+  aggregatedGraphEl.hidden = false;
+  aggregatedDistributionLabelEl.textContent = title;
+  aggregatedGraphEl.setAttribute('aria-label', title);
 
-    aggregatedGraphEl.hidden = false;
-    aggregatedDistributionLabelEl.textContent = title;
-    aggregatedGraphEl.setAttribute('aria-label', title);
+  if (distribution.length === 0) {
+    aggregatedDistributionEl.innerHTML = '';
+    renderTargetChance();
+    return;
+  }
 
-    if (distribution.length === 0) {
-      aggregatedDistributionEl.innerHTML = '';
-      renderTargetChance();
-      return;
-    }
-
-    const maxChance = Math.max(...distribution.map(entry => entry.chance));
-    const minValue = distribution[0].value;
-    const maxValue = distribution[distribution.length - 1].value;
-    const middle = Math.round((minValue + maxValue) / 2);
-    const hitValues = new Set(lastReportedValues);
-    const target = getTargetNumber();
-    aggregatedDistributionEl.style.setProperty('--sides', String(distribution.length));
-    aggregatedDistributionEl.innerHTML = distribution.map(entry => {
-      const height = maxChance > 0 ? Math.max(0, (entry.chance / maxChance) * 100) : 0;
-      const hitClass = hitValues.has(entry.value) ? 'hit' : '';
-      const isKeyLabel =
-        entry.value === minValue ||
-        entry.value === maxValue ||
-        entry.value === middle;
-      const labelClass = isKeyLabel ? 'key-label' : '';
-      const toneClass = target === null
-        ? ''
-        : entry.value < target
-          ? 'weight-low'
-          : 'weight-high';
-      return `
+  const maxChance = Math.max(...distribution.map(entry => entry.chance));
+  const minValue = distribution[0].value;
+  const maxValue = distribution[distribution.length - 1].value;
+  const middle = Math.round((minValue + maxValue) / 2);
+  const hitValues = new Set(lastReportedValues);
+  const target = getTargetNumber();
+  aggregatedDistributionEl.style.setProperty('--sides', String(distribution.length));
+  aggregatedDistributionEl.innerHTML = distribution.map(entry => {
+    const height = maxChance > 0 ? Math.max(0, (entry.chance / maxChance) * 100) : 0;
+    const hitClass = hitValues.has(entry.value) ? 'hit' : '';
+    const isKeyLabel =
+      entry.value === minValue ||
+      entry.value === maxValue ||
+      entry.value === middle;
+    const labelClass = isKeyLabel ? 'key-label' : '';
+    const toneClass = target === null
+      ? ''
+      : entry.value < target
+        ? 'weight-low'
+        : 'weight-high';
+    return `
         <li class="${hitClass} ${toneClass} ${labelClass}" title="${entry.value}: ${formatChance(entry.chance)}">
           <span class="bar-track">
             <span class="bar" style="height: ${height}%"></span>
@@ -1028,673 +484,219 @@ import './style.css'
           <span class="face">${entry.value}</span>
         </li>
       `;
-    }).join('');
-    renderTargetChance();
-  };
+  }).join('');
+  renderTargetChance();
+};
 
-  // ways[s] = number of ways to total s with identical fair dice (faces 1..sides)
-  const sumWaysDistribution = (numberOfRolls: number, sides: number) => {
-    let ways = [1]; // 0 dice → sum 0 has 1 way
+const renderTargetChance = () => {
+  const target = getTargetNumber();
+  if (target === null) {
+    targetChanceEl.hidden = true;
+    targetChanceEl.innerHTML = '';
+    return;
+  }
 
-    for (let die = 0; die < numberOfRolls; die++) {
-      const next: number[] = Array(ways.length + sides).fill(0);
-      for (let sum = 0; sum < ways.length; sum++) {
-        if (ways[sum] === 0) {
-          continue;
-        }
-        for (let face = 1; face <= sides; face++) {
-          next[sum + face] += ways[sum];
-        }
-      }
-      ways = next;
+  const distribution = currentDistribution();
+  let under = 0;
+  let over = 0;
+  for (const entry of distribution) {
+    if (entry.value < target) {
+      under += entry.chance;
+    } else {
+      over += entry.chance;
     }
+  }
 
-    return ways;
-  };
-
-  // Chance of each face when the result is round(mean of N fair rolls).
-  const averageCurveFaceChances = (sides: number, componentRolls = averageCurveRolls) => {
-    const ways = sumWaysDistribution(componentRolls, sides);
-    const totalOutcomes = Math.pow(sides, componentRolls);
-    const counts = Array(sides + 1).fill(0);
-    const minSum = componentRolls;
-    const maxSum = componentRolls * sides;
-
-    for (let sum = minSum; sum <= maxSum; sum++) {
-      const face = Math.min(sides, Math.max(1, Math.round(sum / componentRolls)));
-      counts[face] += ways[sum] ?? 0;
-    }
-
-    return Array.from({ length: sides }, (_, i) => {
-      const value = i + 1;
-      return { value, chance: (counts[value] / totalOutcomes) * 100 };
-    });
-  };
-
-  // Face probabilities as fractions (sum to 1) for the active pick mode.
-  // Weighted uses live weights (i.i.d. snapshot of current odds).
-  // Multi-die weighted rolls still update memory between dice while picking;
-  // advantage / disadvantage then keep the chance drop only on the used face,
-  // and drop low / drop top drop chance on each kept face in the remaining sum.
-  // The graph freezes tonight's chances to answer “what do reported results look like now?”
-  const getPickFaceProbabilities = () => {
-    const sides = selectedDice.sides;
-    let raw: number[];
-    switch (pickMode) {
-      case 'average':
-        raw = averageCurveFaceChances(sides).map(face => face.chance / 100);
-        break;
-      case 'weighted':
-        raw = getFaceChances(selectedDice).map(face => face.chance / 100);
-        break;
-      case 'fair':
-        raw = Array.from({ length: sides }, () => 1 / sides);
-        break;
-    }
-
-    const total = raw.reduce((sum, chance) => sum + chance, 0);
-    if (total <= 0) {
-      return Array.from({ length: sides }, () => 1 / sides);
-    }
-    return raw.map(chance => chance / total);
-  };
-
-  const sumProbabilityDistribution = () => {
-    const numberOfDice = getDicePerRoll();
-    const sides = selectedDice.sides;
-    const faceProb = getPickFaceProbabilities();
-
-    // Convolution of identical independent face distributions
-    let mass = [1]; // 0 dice → sum 0 with probability 1
-    for (let die = 0; die < numberOfDice; die++) {
-      const next: number[] = Array(mass.length + sides).fill(0);
-      for (let sum = 0; sum < mass.length; sum++) {
-        if (mass[sum] === 0) {
-          continue;
-        }
-        for (let face = 1; face <= sides; face++) {
-          next[sum + face] += mass[sum] * faceProb[face - 1];
-        }
-      }
-      mass = next;
-    }
-
-    const minValue = numberOfDice;
-    const maxValue = numberOfDice * sides;
-    const distribution: Array<{ value: number, chance: number }> = [];
-
-    for (let value = minValue; value <= maxValue; value++) {
-      distribution.push({
-        value,
-        chance: (mass[value] ?? 0) * 100,
-      });
-    }
-
-    return distribution;
-  };
-
-  // Keep highest: P(max = k) = F(k)^n - F(k-1)^n
-  const advantageProbabilityDistribution = () => {
-    const dicePerRoll = getDicePerRoll();
-    const sides = selectedDice.sides;
-    const faceProb = getPickFaceProbabilities();
-    const distribution: Array<{ value: number, chance: number }> = [];
-    let cdf = 0;
-
-    for (let value = 1; value <= sides; value++) {
-      const prevCdf = cdf;
-      cdf += faceProb[value - 1];
-      const ways = Math.pow(cdf, dicePerRoll) - Math.pow(prevCdf, dicePerRoll);
-      distribution.push({
-        value,
-        chance: ways * 100,
-      });
-    }
-
-    return distribution;
-  };
-
-  // Keep lowest: P(min = k) = S(k)^n - S(k+1)^n where S(k) = P(X >= k)
-  const disadvantageProbabilityDistribution = () => {
-    const dicePerRoll = getDicePerRoll();
-    const sides = selectedDice.sides;
-    const faceProb = getPickFaceProbabilities();
-    const distribution: Array<{ value: number, chance: number }> = [];
-    let survival = 1;
-
-    for (let value = 1; value <= sides; value++) {
-      const nextSurvival = survival - faceProb[value - 1];
-      const ways = Math.pow(survival, dicePerRoll) - Math.pow(Math.max(0, nextSurvival), dicePerRoll);
-      distribution.push({
-        value,
-        chance: ways * 100,
-      });
-      survival = nextSurvival;
-    }
-
-    return distribution;
-  };
-
-  // P(X = c) for X ~ Binomial(n, p), stable enough for n up to 100.
-  const binomialProbs = (n: number, p: number) => {
-    const probs = new Float64Array(n + 1);
-    if (n === 0 || p <= 0) {
-      probs[0] = 1;
-      return probs;
-    }
-    if (p >= 1) {
-      probs[n] = 1;
-      return probs;
-    }
-
-    const logP = Math.log(p);
-    const logQ = Math.log(1 - p);
-    const logs = new Float64Array(n + 1);
-    let logC = 0;
-    let maxLog = -Infinity;
-    for (let c = 0; c <= n; c++) {
-      logs[c] = logC + c * logP + (n - c) * logQ;
-      if (logs[c] > maxLog) {
-        maxLog = logs[c];
-      }
-      if (c < n) {
-        logC += Math.log(n - c) - Math.log(c + 1);
-      }
-    }
-
-    let total = 0;
-    for (let c = 0; c <= n; c++) {
-      probs[c] = Math.exp(logs[c] - maxLog);
-      total += probs[c];
-    }
-    if (total > 0) {
-      for (let c = 0; c <= n; c++) {
-        probs[c] /= total;
-      }
-    }
-    return probs;
-  };
-
-  const addScaledMass = (target: Float64Array, source: Float64Array, shift: number, scale: number) => {
-    if (scale === 0) {
-      return;
-    }
-    for (let sum = 0; sum < source.length; sum++) {
-      const mass = source[sum];
-      if (mass !== 0) {
-        target[sum + shift] += mass * scale;
-      }
-    }
-  };
-
-  // Drop the single lowest or highest die, then sum the rest.
-  const dropKeepSumProbabilityDistribution = (dropHighest: boolean) => {
-    const n = getDicePerRoll();
-    const keep = n - 1;
-    if (keep < 1) {
-      return [];
-    }
-
-    const sides = selectedDice.sides;
-    const faceProb = getPickFaceProbabilities();
-    const maxSum = keep * sides;
-    const cost = sides * keep * keep * maxSum;
-    if (cost > 8_000_000) {
-      return [];
-    }
-
-    const faceOrder = dropHighest
-      ? Array.from({ length: sides }, (_, i) => i + 1)
-      : Array.from({ length: sides }, (_, i) => sides - i);
-
-    let continuing: Float64Array[] = Array.from({ length: keep }, () => new Float64Array(0));
-    continuing[0] = new Float64Array(1);
-    continuing[0][0] = 1;
-    const finalized = new Float64Array(maxSum + 1);
-
-    for (let index = 0; index < faceOrder.length; index++) {
-      const face = faceOrder[index];
-      let pRemaining = 0;
-      for (let later = index; later < faceOrder.length; later++) {
-        pRemaining += faceProb[faceOrder[later] - 1];
-      }
-      const pEqual = faceProb[face - 1];
-      const pRest = pRemaining - pEqual;
-      let pThis = 0;
-      if (pRemaining > 0) {
-        pThis = pRest <= 1e-15 ? 1 : pEqual / pRemaining;
-      }
-
-      const nextContinuing: Float64Array[] = Array.from({ length: keep }, () => new Float64Array(0));
-
-      for (let kept = 0; kept < keep; kept++) {
-        const mass = continuing[kept];
-        if (mass.length === 0) {
-          continue;
-        }
-
-        const slotsLeft = keep - kept;
-        const remainingDice = n - kept;
-        if (remainingDice <= 0) {
-          continue;
-        }
-
-        const binom = binomialProbs(remainingDice, pThis);
-        let pFinalize = 0;
-        for (let count = slotsLeft; count <= remainingDice; count++) {
-          pFinalize += binom[count];
-        }
-        if (pFinalize > 0) {
-          addScaledMass(finalized, mass, face * slotsLeft, pFinalize);
-        }
-
-        for (let count = 0; count < slotsLeft && count <= remainingDice; count++) {
-          const pCount = binom[count];
-          if (pCount === 0) {
-            continue;
-          }
-          const nextKept = kept + count;
-          const nextLen = mass.length + face * count;
-          if (nextContinuing[nextKept].length < nextLen) {
-            const grown = new Float64Array(nextLen);
-            grown.set(nextContinuing[nextKept]);
-            nextContinuing[nextKept] = grown;
-          }
-          addScaledMass(nextContinuing[nextKept], mass, face * count, pCount);
-        }
-      }
-
-      continuing = nextContinuing;
-    }
-
-    const minValue = keep;
-    const distribution: Array<{ value: number, chance: number }> = [];
-    for (let value = minValue; value <= maxSum; value++) {
-      distribution.push({
-        value,
-        chance: (finalized[value] ?? 0) * 100,
-      });
-    }
-    return distribution;
-  };
-
-  const aggregatedChanceByMode: Record<ResultMode, () => ChanceEntry[]> = {
-    sum: sumProbabilityDistribution,
-    advantage: advantageProbabilityDistribution,
-    disadvantage: disadvantageProbabilityDistribution,
-    'drop-lowest': () => dropKeepSumProbabilityDistribution(false),
-    'drop-highest': () => dropKeepSumProbabilityDistribution(true),
-  };
-
-  const applyModifierToDistribution = (entries: ChanceEntry[]) => {
-    const modifier = getRollModifier();
-    if (modifier === 0) {
-      return entries;
-    }
-    return entries.map(entry => ({ value: entry.value + modifier, chance: entry.chance }));
-  };
-
-  const getReportedDistribution = () => {
-    if (resultMode) {
-      return applyModifierToDistribution(aggregatedChanceByMode[resultMode]());
-    }
-    if (pickMode === 'average') {
-      return applyModifierToDistribution(averageCurveFaceChances(selectedDice.sides));
-    }
-    return applyModifierToDistribution(getFaceChances(selectedDice));
-  };
-
-  const renderTargetChance = () => {
-    const target = getTargetNumber();
-    if (target === null) {
-      targetChanceEl.hidden = true;
-      targetChanceEl.innerHTML = '';
-      return;
-    }
-
-    const distribution = getReportedDistribution();
-    let under = 0;
-    let over = 0;
-    for (const entry of distribution) {
-      if (entry.value < target) {
-        under += entry.chance;
-      } else {
-        over += entry.chance;
-      }
-    }
-
-    targetChanceEl.hidden = false;
-    targetChanceEl.innerHTML = `
+  targetChanceEl.hidden = false;
+  targetChanceEl.innerHTML = `
       <span id="target-under" class="target-under">Under ${formatChance(under)}</span>
       <span id="target-over" class="target-over">Over ${formatChance(over)}</span>
     `;
-  };
+};
 
-  const selectDie = (name: string) => {
-    const nextDice = diceTypes.find(d => d.name === name);
-    if (!nextDice) {
-      return;
+const selectDie = (name: string) => {
+  const nextDice = diceTypes.find(d => d.name === name);
+  if (!nextDice) {
+    return;
+  }
+
+  selectedDice = nextDice;
+  lastRolls = [];
+  lastReportedValues = [];
+  renderStageDie();
+  setResultDisplay('—', `Selected ${selectedDice.name}. Roll to begin.`);
+  renderDieSelect();
+  renderProbabilityConfig();
+  renderWeights();
+  renderAggregatedDistribution();
+  persistState();
+};
+
+const setPickMode = (next: PickMode) => {
+  pickMode = next;
+  renderModeControls();
+  renderWeights();
+  renderAggregatedDistribution();
+
+  switch (next) {
+    case 'weighted':
+      setResultDisplay(
+        resultValueEl.textContent || '—',
+        'Fairish picking on — rolls use and update face chances.',
+      );
+      break;
+    case 'average':
+      setResultDisplay(
+        resultValueEl.textContent || '—',
+        `Average curve on — each result is the mean of ${averageCurveRolls} fair rolls (extremes rare, middle common).`,
+      );
+      break;
+    case 'fair':
+      setResultDisplay(
+        resultValueEl.textContent || '—',
+        'Fair picking — fair rolls, weights stay frozen.',
+      );
+      break;
+  }
+  persistState();
+};
+
+const modeListbox = createListbox(
+  modeListboxRoot,
+  (value) => {
+    if (isPickMode(value)) {
+      setPickMode(value);
     }
+  },
+);
 
-    selectedDice = nextDice;
-    lastRolls = [];
-    lastReportedValues = [];
-    renderStageDie();
-    setResultDisplay('—', `Selected ${selectedDice.name}. Roll to begin.`);
-    renderDieSelect();
-    renderProbabilityConfig();
-    renderWeights();
-    renderAggregatedDistribution();
-    persistState();
-  };
-
-  dieSelect.addEventListener('click', (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) {
-      return;
-    }
-
-    const button = target.closest<HTMLButtonElement>('button[data-die-name]');
-    if (!button) {
-      return;
-    }
-
-    const name = button.dataset.dieName;
-    if (!name) {
-      return;
-    }
-
-    selectDie(name);
-  });
-
-  const setPickMode = (next: PickMode) => {
-    pickMode = next;
-    renderModeControls();
-    renderWeights();
-    renderAggregatedDistribution();
-
-    switch (next) {
-      case 'weighted':
-        setResultDisplay(
-          resultValueEl.textContent || '—',
-          'Fairish picking on — rolls use and update face chances.',
-        );
-        break;
-      case 'average':
-        setResultDisplay(
-          resultValueEl.textContent || '—',
-          `Average curve on — each result is the mean of ${averageCurveRolls} fair rolls (extremes rare, middle common).`,
-        );
-        break;
-      case 'fair':
-        setResultDisplay(
-          resultValueEl.textContent || '—',
-          'Fair picking — fair rolls, weights stay frozen.',
-        );
-        break;
-    }
-    persistState();
-  };
-
-  const modeListbox = createListbox(
-    document.querySelector<HTMLElement>('#mode-listbox-root')!,
-    (value) => {
-      if (isPickMode(value)) {
-        setPickMode(value);
-      }
-    },
-  );
-
-  const aggregationListbox = createListbox(
-    document.querySelector<HTMLElement>('#aggregation-listbox-root')!,
-    (value) => {
-      resultMode = isResultMode(value) ? value : null;
-      renderResultModeControls();
-      renderProbabilityConfig();
-      renderAggregatedDistribution();
-      persistState();
-    },
-  );
-
-  rollsDecBtn.addEventListener('click', () => {
-    setRollCount(getRollCount() - 1);
-    renderProbabilityConfig();
-    renderAggregatedDistribution();
-    persistState();
-  });
-
-  rollsIncBtn.addEventListener('click', () => {
-    setRollCount(getRollCount() + 1);
-    renderProbabilityConfig();
-    renderAggregatedDistribution();
-    persistState();
-  });
-
-  rollsInput.addEventListener('change', () => {
-    setRollCount(getRollCount());
-    renderProbabilityConfig();
-    renderAggregatedDistribution();
-    persistState();
-  });
-
-  dicePerRollDecBtn.addEventListener('click', () => {
-    setDicePerRoll(getDicePerRoll() - 1);
-    renderProbabilityConfig();
-    renderAggregatedDistribution();
-    persistState();
-  });
-
-  dicePerRollIncBtn.addEventListener('click', () => {
-    setDicePerRoll(getDicePerRoll() + 1);
-    renderProbabilityConfig();
-    renderAggregatedDistribution();
-    persistState();
-  });
-
-  dicePerRollInput.addEventListener('change', () => {
-    setDicePerRoll(getDicePerRoll());
-    renderProbabilityConfig();
-    renderAggregatedDistribution();
-    persistState();
-  });
-
-  const onModifierChange = () => {
-    setRollModifier(getRollModifier());
-    renderProbabilityConfig();
-    renderAggregatedDistribution();
-    persistState();
-  };
-
-  modifierDecBtn.addEventListener('click', () => {
-    setRollModifier(getRollModifier() - 1);
-    onModifierChange();
-  });
-
-  modifierIncBtn.addEventListener('click', () => {
-    setRollModifier(getRollModifier() + 1);
-    onModifierChange();
-  });
-
-  modifierInput.addEventListener('change', onModifierChange);
-
-  targetDecBtn.addEventListener('click', () => {
-    stepTarget(-1);
-  });
-
-  targetIncBtn.addEventListener('click', () => {
-    stepTarget(1);
-  });
-
-  targetInput.addEventListener('input', () => {
-    renderAggregatedDistribution();
-  });
-
-  const performRoll = () => {
-    const rollCount = getRollCount();
-    setRollCount(rollCount);
-    const modifier = getRollModifier();
-    setRollModifier(modifier);
-
-    const groups: RollGroup[] = [];
-
-    if (resultMode) {
-      const dicePerRoll = getDicePerRoll();
-      setDicePerRoll(dicePerRoll);
-      const aggregation = aggregations[resultMode];
-      const rememberKeptOnly = pickMode === 'weighted' && aggregation.rememberKeptOnly;
-      for (let rollIndex = 0; rollIndex < rollCount; rollIndex++) {
-        const beforePool = rememberKeptOnly ? snapshotModifiers(selectedDice) : null;
-        const faces = Array.from({ length: dicePerRoll }, () =>
-          rollDice(selectedDice, pickMode),
-        );
-        const kept = aggregation.keptFaces(faces);
-        const value = totalRolls(kept) + modifier;
-        if (beforePool !== null) {
-          restoreModifiers(selectedDice, beforePool);
-          for (const face of kept) {
-            modifyValues(selectedDice, face);
-          }
-        }
-        groups.push({ faces, value });
-      }
-    } else {
-      for (let rollIndex = 0; rollIndex < rollCount; rollIndex++) {
-        const face = rollDice(selectedDice, pickMode);
-        groups.push({ faces: [face], value: face + modifier });
-      }
-    }
-
-    lastRolls = groups.flatMap(group => group.faces);
-    const { value, meta, reported } = formatRollResult(groups, resultMode, pickMode);
-    lastReportedValues = reported;
-    recordHistory(groups.map(group => ({
-      die: selectedDice.name,
-      value: group.value,
-      detail: resultMode ? aggregations[resultMode].historyDetail(group.faces) : undefined,
-    })));
-    persistState();
-    setResultDisplay(value, meta);
-    renderProbabilityConfig();
-    renderWeights();
-    renderAggregatedDistribution();
-  };
-
-  rollBtn.addEventListener('click', performRoll);
-  probabilityRollBtn.addEventListener('click', performRoll);
-
-  resetBtn.addEventListener('click', () => {
-    selectedDice.modifiers = [];
-    lastRolls = [];
-    lastReportedValues = [];
-    setResultDisplay('—', `${selectedDice.name} reset to fair odds.`);
-    renderWeights();
-    renderAggregatedDistribution();
-    persistState();
-  });
-
-  probabilityToggleBtn.addEventListener('click', () => {
-    if (!isOverlayDrawer()) {
-      return;
-    }
-    const next = probabilityEl.dataset.open !== 'true';
-    setProbabilityOpen(next);
-    if (next) {
-      setSettingsOpen(false);
-    }
-  });
-
-  probabilityCloseBtn.addEventListener('click', () => {
-    setProbabilityOpen(false);
-  });
-
-  settingsToggleBtn.addEventListener('click', () => {
-    if (!isOverlayDrawer()) {
-      return;
-    }
-    const next = settingsEl.dataset.open !== 'true';
-    setSettingsOpen(next);
-    if (next) {
-      setProbabilityOpen(false);
-    }
-  });
-
-  settingsCloseBtn.addEventListener('click', () => {
-    setSettingsOpen(false);
-  });
-
-  settingsDefaultBtn.addEventListener('click', () => {
-    const settings = defaultSettings();
-    selectedDice = diceTypes.find(die => die.name === settings.selectedDie) ?? selectedDice;
-    pickMode = settings.pickMode;
-    resultMode = settings.resultMode;
-    weightedDropPercent = settings.weightedDropPercent;
-    lastRolls = [];
-    lastReportedValues = [];
-    setRollCount(settings.rollCount);
-    setDicePerRoll(settings.dicePerRoll);
-    setRollModifier(settings.modifier);
-    setAverageCurveRolls(settings.averageCurveRolls);
-    targetInput.value = '';
-    applyTheme('dark');
-    renderStageDie();
-    renderDieSelect();
-    renderModeControls();
+const aggregationListbox = createListbox(
+  aggregationListboxRoot,
+  (value) => {
+    resultMode = isResultMode(value) ? value : null;
     renderResultModeControls();
-    renderWeightedDropControl();
     renderProbabilityConfig();
-    renderWeights();
     renderAggregatedDistribution();
-    setResultDisplay('—', 'Settings restored to defaults.');
     persistState();
-  });
+  },
+);
 
-  themeToggleBtn.addEventListener('click', () => {
-    const next: Theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
-    applyTheme(next);
-  });
+const pickOptions = () => ({ weightedDropPercent, averageCurveRolls });
 
-  weightedDropSlider.addEventListener('input', () => {
-    const next = Number.parseInt(weightedDropSlider.value, 10);
-    weightedDropPercent = Number.isFinite(next)
-      ? Math.min(100, Math.max(0, next))
-      : 20;
-    renderWeightedDropControl();
-    persistState();
-  });
+const afterTrayChange = () => {
+  renderProbabilityConfig();
+  renderAggregatedDistribution();
+  persistState();
+};
 
-  averageCurveRollsDecBtn.addEventListener('click', () => {
-    applyAverageCurveRolls(getAverageCurveRolls() - 1);
-  });
+const performRoll = () => {
+  const rollCount = getRollCount();
+  setRollCount(rollCount);
+  const modifier = getRollModifier();
+  setRollModifier(modifier);
 
-  averageCurveRollsIncBtn.addEventListener('click', () => {
-    applyAverageCurveRolls(getAverageCurveRolls() + 1);
-  });
+  const groups: RollGroup[] = [];
 
-  averageCurveRollsInput.addEventListener('change', () => {
-    applyAverageCurveRolls(getAverageCurveRolls());
-  });
-
-  window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      if (historyRoot.querySelector('#history-modal')) {
-        closeHistoryModal();
-        return;
+  if (resultMode) {
+    const dicePerRoll = getDicePerRoll();
+    setDicePerRoll(dicePerRoll);
+    const aggregation = aggregations[resultMode];
+    const rememberKeptOnly = pickMode === 'weighted' && aggregation.rememberKeptOnly;
+    for (let rollIndex = 0; rollIndex < rollCount; rollIndex++) {
+      const beforePool = rememberKeptOnly ? snapshotModifiers(selectedDice) : null;
+      const faces = Array.from({ length: dicePerRoll }, () =>
+        rollDice(selectedDice, pickMode, pickOptions()),
+      );
+      const kept = aggregation.keptFaces(faces);
+      const value = totalRolls(kept) + modifier;
+      if (beforePool !== null) {
+        restoreModifiers(selectedDice, beforePool);
+        for (const face of kept) {
+          modifyValues(selectedDice, face, weightedDropPercent);
+        }
       }
-      if (settingsEl.dataset.open === 'true' && isOverlayDrawer()) {
-        setSettingsOpen(false);
-        return;
-      }
-      if (probabilityEl.dataset.open === 'true' && isOverlayDrawer()) {
-        setProbabilityOpen(false);
-      }
+      groups.push({ faces, value });
     }
-  });
-
-  historyRoot.addEventListener('click', (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) {
-      return;
+  } else {
+    for (let rollIndex = 0; rollIndex < rollCount; rollIndex++) {
+      const face = rollDice(selectedDice, pickMode, pickOptions());
+      groups.push({ faces: [face], value: face + modifier });
     }
+  }
+
+  lastRolls = groups.flatMap(group => group.faces);
+  const { value, meta, reported } = formatRollResult(groups, resultMode, pickMode);
+  lastReportedValues = reported;
+  recordHistory(groups.map(group => ({
+    die: selectedDice.name,
+    value: group.value,
+    detail: resultMode ? aggregations[resultMode].historyDetail(group.faces) : undefined,
+  })));
+  persistState();
+  setResultDisplay(value, meta);
+  renderProbabilityConfig();
+  renderWeights();
+  renderAggregatedDistribution();
+};
+
+const resetWeights = () => {
+  selectedDice.modifiers = [];
+  lastRolls = [];
+  lastReportedValues = [];
+  setResultDisplay('—', `${selectedDice.name} reset to fair odds.`);
+  renderWeights();
+  renderAggregatedDistribution();
+  persistState();
+};
+
+const restoreDefaultSettings = () => {
+  const settings = defaultSettings();
+  selectedDice = diceTypes.find(die => die.name === settings.selectedDie) ?? selectedDice;
+  pickMode = settings.pickMode;
+  resultMode = settings.resultMode;
+  weightedDropPercent = settings.weightedDropPercent;
+  lastRolls = [];
+  lastReportedValues = [];
+  setRollCount(settings.rollCount);
+  setDicePerRoll(settings.dicePerRoll);
+  setRollModifier(settings.modifier);
+  setAverageCurveRolls(settings.averageCurveRolls);
+  targetInput.value = '';
+  applyTheme('dark');
+  renderStageDie();
+  renderDieSelect();
+  renderModeControls();
+  renderResultModeControls();
+  renderWeightedDropControl();
+  renderProbabilityConfig();
+  renderWeights();
+  renderAggregatedDistribution();
+  setResultDisplay('—', 'Settings restored to defaults.');
+  persistState();
+};
+
+const toggleOverlayDrawer = (
+  drawer: HTMLElement,
+  open: (next: boolean) => void,
+  other: (next: boolean) => void,
+) => {
+  if (!isOverlayDrawer()) {
+    return;
+  }
+  const next = drawer.dataset.open !== 'true';
+  open(next);
+  if (next) {
+    other(false);
+  }
+};
+
+const handlePageEvent = (event: Event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
+
+  if (event.type === 'click') {
     if (target.closest('[data-history-clear]')) {
       rollHistory.length = 0;
       persistState();
@@ -1703,17 +705,160 @@ import './style.css'
     }
     if (target.closest('[data-history-close]')) {
       closeHistoryModal();
+      return;
     }
-  });
 
-  const renderDieSelect = () => {
-    dieSelect.innerHTML = diceTypes.map(d => {
-      const pressed = d.name === selectedDice.name;
-      return `
+    const control = target.closest<HTMLElement>('[data-action]');
+    if (!control || control instanceof HTMLInputElement) {
+      return;
+    }
+
+    switch (control.dataset.action) {
+      case 'select-die': {
+        const name = control.dataset.dieName;
+        if (name) {
+          selectDie(name);
+        }
+        break;
+      }
+      case 'rolls-dec':
+        setRollCount(getRollCount() - 1);
+        afterTrayChange();
+        break;
+      case 'rolls-inc':
+        setRollCount(getRollCount() + 1);
+        afterTrayChange();
+        break;
+      case 'dice-per-roll-dec':
+        setDicePerRoll(getDicePerRoll() - 1);
+        afterTrayChange();
+        break;
+      case 'dice-per-roll-inc':
+        setDicePerRoll(getDicePerRoll() + 1);
+        afterTrayChange();
+        break;
+      case 'modifier-dec':
+        setRollModifier(getRollModifier() - 1);
+        afterTrayChange();
+        break;
+      case 'modifier-inc':
+        setRollModifier(getRollModifier() + 1);
+        afterTrayChange();
+        break;
+      case 'target-dec':
+        stepTarget(-1);
+        break;
+      case 'target-inc':
+        stepTarget(1);
+        break;
+      case 'curve-rolls-dec':
+        applyAverageCurveRolls(getAverageCurveRolls() - 1);
+        break;
+      case 'curve-rolls-inc':
+        applyAverageCurveRolls(getAverageCurveRolls() + 1);
+        break;
+      case 'roll':
+        performRoll();
+        break;
+      case 'reset-weights':
+        resetWeights();
+        break;
+      case 'probability-toggle':
+        toggleOverlayDrawer(probabilityEl, setProbabilityOpen, setSettingsOpen);
+        break;
+      case 'probability-close':
+        setProbabilityOpen(false);
+        break;
+      case 'settings-toggle':
+        toggleOverlayDrawer(settingsEl, setSettingsOpen, setProbabilityOpen);
+        break;
+      case 'settings-close':
+        setSettingsOpen(false);
+        break;
+      case 'settings-default':
+        restoreDefaultSettings();
+        break;
+      case 'theme-toggle': {
+        const next: Theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+        applyTheme(next);
+        break;
+      }
+    }
+    return;
+  }
+
+  const control = target.closest<HTMLElement>('[data-action]');
+  if (!control) {
+    return;
+  }
+  const action = control.dataset.action;
+
+  if (event.type === 'input') {
+    if (action === 'target') {
+      renderAggregatedDistribution();
+    } else if (action === 'weighted-drop') {
+      const next = Number.parseInt(weightedDropSlider.value, 10);
+      weightedDropPercent = Number.isFinite(next)
+        ? Math.min(100, Math.max(0, next))
+        : 20;
+      renderWeightedDropControl();
+      persistState();
+    }
+    return;
+  }
+
+  if (event.type !== 'change') {
+    return;
+  }
+
+  switch (action) {
+    case 'rolls':
+      setRollCount(getRollCount());
+      afterTrayChange();
+      break;
+    case 'dice-per-roll':
+      setDicePerRoll(getDicePerRoll());
+      afterTrayChange();
+      break;
+    case 'modifier':
+      setRollModifier(getRollModifier());
+      afterTrayChange();
+      break;
+    case 'curve-rolls':
+      applyAverageCurveRolls(getAverageCurveRolls());
+      break;
+  }
+};
+
+page.addEventListener('click', handlePageEvent);
+page.addEventListener('input', handlePageEvent);
+page.addEventListener('change', handlePageEvent);
+
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    if (historyRoot.querySelector('#history-modal')) {
+      closeHistoryModal();
+      return;
+    }
+    if (settingsEl.dataset.open === 'true' && isOverlayDrawer()) {
+      setSettingsOpen(false);
+      return;
+    }
+    if (probabilityEl.dataset.open === 'true' && isOverlayDrawer()) {
+      setProbabilityOpen(false);
+    }
+  }
+});
+
+const renderDieSelect = () => {
+  dieSelect.innerHTML = diceTypes.map(d => {
+    const pressed = d.name === selectedDice.name;
+    return `
         <li class="die-select-item">
           <button
             type="button"
             class="die-select-item-btn"
+            data-action="select-die"
             data-die-name="${d.name}"
             aria-pressed="${pressed}"
             aria-label="${d.name}"
@@ -1723,24 +868,23 @@ import './style.css'
           </button>
         </li>
       `;
-    }).join('');
-  };
+  }).join('');
+};
 
-  const main = () => {
-    applyTheme(readStoredTheme());
-    loadPersistedState();
-    setRollCount(getRollCount());
-    setRollModifier(getRollModifier());
-    renderStageDie();
-    renderDieSelect();
-    renderModeControls();
-    renderResultModeControls();
-    renderWeightedDropControl();
-    setAverageCurveRolls(averageCurveRolls);
-    renderProbabilityConfig();
-    renderWeights();
-    renderAggregatedDistribution();
-  };
+const main = () => {
+  applyTheme(readStoredTheme());
+  restorePersistedState();
+  setRollCount(getRollCount());
+  setRollModifier(getRollModifier());
+  renderStageDie();
+  renderDieSelect();
+  renderModeControls();
+  renderResultModeControls();
+  renderWeightedDropControl();
+  setAverageCurveRolls(averageCurveRolls);
+  renderProbabilityConfig();
+  renderWeights();
+  renderAggregatedDistribution();
+};
 
-  main();
-})();
+main();
